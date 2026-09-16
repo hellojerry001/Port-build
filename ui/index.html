@@ -64,6 +64,16 @@
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
     background: rgba(255,255,255,.12); backdrop-filter: blur(8px); color: var(--fg);
     padding: 8px 18px; border-radius: 10px; font-size: 12px; display: none; }
+
+  /* 发布面板 */
+  .urlrow { display: flex; gap: 6px; }
+  .urlrow input { flex: 1; min-width: 0; }
+  .pub-status { margin: 4px 0 2px; font-size: 12px; }
+  .pub-loading { color: var(--fg2); }
+  .pub-ok { color: rgba(120,220,150,.95); margin-bottom: 6px; }
+  .pub-err { color: #ff8a8a; white-space: pre-wrap; word-break: break-word; }
+  .pub-count { color: var(--fg3); margin-top: 10px; font-size: 12px; }
+  .pub-tip { color: var(--fg3); font-size: 11px; margin-top: 8px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -104,6 +114,21 @@
       <button class="btn ghost" onclick="closeEditor()">取消</button>
       <button class="btn" onclick="submitProject()">保存</button>
     </div>
+  </div>
+</div>
+<div class="mask" id="pubMask">
+  <div class="modal" style="width:470px">
+    <h3>发布到线上 · 临时链接</h3>
+    <div class="field"><label>项目</label><div id="pubName" style="color:var(--fg);font-size:13px"></div></div>
+    <div class="field"><label>部署目录（静态构建产物，如 dist / build，仅含 HTML/CSS/JS/图片）</label>
+      <input type="text" id="pubPath" style="width:100%"></div>
+    <div id="pubStatus" class="pub-status"></div>
+    <div class="foot">
+      <button class="btn ghost" onclick="closePublish()">取消</button>
+      <button class="btn" id="pubBtn" onclick="doPublish()">发布</button>
+    </div>
+    <div class="pub-tip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>60 分钟自动失效</b>；
+      失效前点结果里的「认领」登录 Cloudflare 即可转永久（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。</div>
   </div>
 </div>
 <div id="toast"></div>
@@ -154,6 +179,7 @@ function renderProjects() {
           ? `<button class="btn ghost" onclick='doOp("stop","${p.id}")'>停止</button>`
           : `<button class="btn" onclick='doOp("start","${p.id}")'>启动</button>`}
         <button class="btn ghost" onclick='openBrowser(${p.port})'>浏览器</button>
+        <button class="btn ghost" onclick='openPublish("${p.id}")'>发布</button>
         <button class="btn ghost" onclick='openEditor("${p.id}")'>编辑</button>
         <button class="btn ghost" onclick='doRemove("${p.id}")' style="margin-left:auto">删除</button>
       </div>
@@ -211,6 +237,90 @@ async function submitProject() {
     return toast("请填写完整");
   projects = await invoke("save_project", { project });
   closeEditor(); renderProjects(); toast("已保存");
+}
+
+let pubId = "";
+function openPublish(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  pubId = id;
+  $("pubName").textContent = p.name;
+  $("pubPath").value = p.path + "/dist";
+  $("pubStatus").innerHTML = "";
+  $("pubBtn").disabled = false;
+  $("pubBtn").textContent = "发布";
+  $("pubBtn").onclick = doPublish;
+  $("pubMask").classList.add("show");
+}
+function closePublish() { $("pubMask").classList.remove("show"); }
+
+async function doPublish() {
+  const dist = $("pubPath").value.trim();
+  if (!dist) return toast("请填写部署目录");
+  $("pubBtn").disabled = true;
+  $("pubBtn").textContent = "发布中…";
+  $("pubStatus").innerHTML = '<div class="pub-loading">正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…</div>';
+  try {
+    const r = await invoke("publish_project", { distPath: dist });
+    if (r.ok && r.url) {
+      showPubResult(r);
+    } else {
+      const msg = (r.error || "未知错误").split("\n").slice(0, 12).join("\n");
+      $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(msg) + '</div>';
+      $("pubBtn").disabled = false;
+      $("pubBtn").textContent = "重试";
+    }
+  } catch (e) {
+    $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(String(e)) + '</div>';
+    $("pubBtn").disabled = false;
+    $("pubBtn").textContent = "重试";
+  }
+}
+
+function showPubResult(r) {
+  const isTemp = !!r.claim_url;
+  let html = isTemp
+    ? '<div class="pub-ok">✅ 发布成功，临时链接 60 分钟后失效</div>'
+    : '<div class="pub-ok">✅ 发布成功，已部署到你的 Cloudflare 账号（长期有效）</div>';
+  html +=
+    '<div class="field"><label>Website URL（任何人可访问）</label>' +
+      '<div class="urlrow"><input id="pubUrl" readonly value="' + esc(r.url) + '">' +
+      '<button class="btn" onclick="copyText(\'pubUrl\')">复制</button>' +
+      '<button class="btn ghost" onclick="openLink(\'' + esc(r.url) + '\')">打开</button></div></div>';
+  if (isTemp) {
+    html +=
+      '<div class="field"><label>认领链接（60 分钟内登录 Cloudflare 可转永久）</label>' +
+        '<div class="urlrow"><input id="pubClaim" readonly value="' + esc(r.claim_url) + '">' +
+        '<button class="btn" onclick="copyText(\'pubClaim\')">复制</button>' +
+        '<button class="btn ghost" onclick="openLink(\'' + esc(r.claim_url) + '\')">认领</button></div></div>' +
+      '<div class="pub-count" id="pubCount"></div>';
+  } else {
+    html += '<div class="pub-tip">部署在你的 Cloudflare 账号下，长期有效。不再需要时可到 Cloudflare 控制台删除对应 Worker。</div>';
+  }
+  $("pubStatus").innerHTML = html;
+  $("pubBtn").textContent = "关闭";
+  $("pubBtn").onclick = closePublish;
+  if (isTemp) {
+    const expiry = Date.now() + 60 * 60 * 1000;
+    const tick = () => {
+      const ms = expiry - Date.now();
+      if (ms <= 0) { $("pubCount").textContent = "链接已过期，请重新发布"; return; }
+      const m = Math.floor(ms / 60000), s = Math.floor(ms % 60000 / 1000);
+      $("pubCount").textContent = `剩余 ${m} 分 ${s} 秒`;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }
+}
+
+function copyText(id) {
+  const v = $(id).value;
+  (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject())
+    .then(() => toast("已复制"))
+    .catch(() => toast("复制失败，请手动复制"));
+}
+function openLink(u) {
+  invoke("open_url", { url: u }).catch(() => { try { window.open(u, "_blank"); } catch (_) {} });
 }
 
 refreshAll();
