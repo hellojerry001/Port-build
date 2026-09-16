@@ -25,16 +25,17 @@
   .btn.kill:hover { color: #fff; background: rgba(220,60,60,.55); }
 
   /* 项目卡片 */
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
   .card { background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 14px 16px; }
+    border-radius: 12px; padding: 14px 16px; min-width: 0; }
   .card .row1 { display: flex; align-items: center; gap: 8px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); }
   .dot.on { background: rgba(120,220,150,.9); box-shadow: 0 0 6px rgba(120,220,150,.5); }
-  .card .name { font-weight: 600; font-size: 14px; }
+  .card .name { font-weight: 600; font-size: 14px; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .port-chip { margin-left: auto; color: var(--fg2); font-size: 11px;
-    background: var(--panel); padding: 2px 8px; border-radius: 6px; }
-  .card .meta { color: var(--fg3); font-size: 11px; margin-top: 6px;
+    background: var(--panel); padding: 2px 8px; border-radius: 6px; flex: none; }
+  .card .meta { color: var(--fg3); font-size: 11px; margin-top: 6px; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .ops { display: flex; gap: 4px; margin-top: 10px; }
 
