@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  :root {
+    --bg: #16181c; --panel: rgba(255,255,255,.04); --panel-hi: rgba(255,255,255,.08);
+    --line: rgba(255,255,255,.09); --fg: rgba(255,255,255,.92); --fg2: rgba(255,255,255,.5);
+    --fg3: rgba(255,255,255,.32); --danger: rgba(255,255,255,.85);
+  }
+  body { background: var(--bg); color: var(--fg);
+    font: 13px/1.5 -apple-system, "PingFang SC", sans-serif; padding: 20px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+  header .sub { color: var(--fg3); font-size: 12px; }
+  .tabs { display: flex; gap: 4px; margin-left: auto; }
+  .tab { padding: 6px 14px; border-radius: 8px; cursor: pointer; color: var(--fg2); }
+  .tab.on { background: var(--panel-hi); color: var(--fg); }
+  .btn { padding: 5px 12px; border-radius: 7px; border: none; cursor: pointer;
+    background: var(--panel-hi); color: var(--fg); font-size: 12px; }
+  .btn:hover { background: rgba(255,255,255,.14); }
+  .btn.ghost { background: transparent; color: var(--fg2); }
+  .btn.ghost:hover { background: var(--panel-hi); color: var(--fg); }
+  .btn.kill:hover { color: #fff; background: rgba(220,60,60,.55); }
+
+  /* 项目卡片 */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 16px; }
+  .card .row1 { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); }
+  .dot.on { background: rgba(120,220,150,.9); box-shadow: 0 0 6px rgba(120,220,150,.5); }
+  .card .name { font-weight: 600; font-size: 14px; }
+  .card .port-chip { margin-left: auto; color: var(--fg2); font-size: 11px;
+    background: var(--panel); padding: 2px 8px; border-radius: 6px; }
+  .card .meta { color: var(--fg3); font-size: 11px; margin-top: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .ops { display: flex; gap: 4px; margin-top: 10px; }
+
+  /* 端口雷达 */
+  .radar-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line);
+    color: var(--fg); border-radius: 8px; padding: 6px 10px; font-size: 12px; outline: none; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--fg3); font-weight: 400; font-size: 11px; }
+  td { font-size: 12px; }
+  tr:hover td { background: var(--panel); }
+  .empty { color: var(--fg3); text-align: center; padding: 40px 0; }
+
+  /* 弹窗 */
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; }
+  .mask.show { display: flex; }
+  .modal { background: #1d2026; border: 1px solid var(--line); border-radius: 14px;
+    width: 440px; padding: 20px; }
+  .modal h3 { font-size: 14px; margin-bottom: 14px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; color: var(--fg2); font-size: 11px; margin-bottom: 4px; }
+  .field input { width: 100%; }
+  .modal .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,255,255,.12); backdrop-filter: blur(8px); color: var(--fg);
+    padding: 8px 18px; border-radius: 10px; font-size: 12px; display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>端口管家</h1><span class="sub">PortButler · 项目 & 端口管理</span>
+  <div class="tabs">
+    <div class="tab on" data-view="projects">项目</div>
+    <div class="tab" data-view="radar">端口雷达</div>
+  </div>
+</header>
+
+<div id="view-projects">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button class="btn" onclick="openEditor()">＋ 新建项目</button>
+  </div>
+  <div class="grid" id="projGrid"></div>
+</div>
+
+<div id="view-radar" style="display:none">
+  <div class="radar-bar">
+    <input type="text" id="radarSearch" placeholder="搜索端口 / 进程…" style="flex:1" oninput="renderRadar()">
+    <button class="btn" onclick="refreshAll()">刷新</button>
+  </div>
+  <table>
+    <thead><tr><th>端口</th><th>进程</th><th>PID</th><th style="width:90px"></th></tr></thead>
+    <tbody id="radarBody"></tbody>
+  </table>
+</div>
+
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3 id="mTitle">新建项目</h3>
+    <div class="field"><label>项目名称</label><input type="text" id="fName"></div>
+    <div class="field"><label>项目路径（绝对路径）</label><input type="text" id="fPath" placeholder="/Users/jerry/xxx"></div>
+    <div class="field"><label>启动命令（在项目目录执行，如 npm run dev）</label><input type="text" id="fCmd"></div>
+    <div class="field"><label>端口</label><input type="number" id="fPort" placeholder="1420"></div>
+    <div class="foot">
+      <button class="btn ghost" onclick="closeEditor()">取消</button>
+      <button class="btn" onclick="submitProject()">保存</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
+let projects = [], busyPorts = new Map(), editingId = "";
+
+const $ = id => document.getElementById(id);
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600);
+}
+
+document.querySelectorAll(".tab").forEach(el => el.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("on"));
+  el.classList.add("on");
+  $("view-projects").style.display = el.dataset.view === "projects" ? "" : "none";
+  $("view-radar").style.display = el.dataset.view === "radar" ? "" : "none";
+});
+
+async function refreshAll() {
+  try {
+    projects = await invoke("list_projects");
+    const ports = await invoke("list_ports");
+    busyPorts = new Map(ports.map(p => [p.port, p]));
+  } catch (e) { toast(String(e)); return; }
+  renderProjects(); renderRadar();
+}
+
+function renderProjects() {
+  const grid = $("projGrid");
+  if (!projects.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">还没有项目，点右上角「新建项目」添加</div>';
+    return;
+  }
+  grid.innerHTML = projects.map(p => {
+    const live = busyPorts.has(p.port);
+    return `<div class="card">
+      <div class="row1">
+        <span class="dot ${live ? "on" : ""}"></span>
+        <span class="name">${esc(p.name)}</span>
+        <span class="port-chip">:${p.port}</span>
+      </div>
+      <div class="meta" title="${esc(p.path)}">${esc(p.path)} · ${esc(p.command)}</div>
+      <div class="ops">
+        ${live
+          ? `<button class="btn ghost" onclick='doOp("stop","${p.id}")'>停止</button>`
+          : `<button class="btn" onclick='doOp("start","${p.id}")'>启动</button>`}
+        <button class="btn ghost" onclick='openBrowser(${p.port})'>浏览器</button>
+        <button class="btn ghost" onclick='openEditor("${p.id}")'>编辑</button>
+        <button class="btn ghost" onclick='doRemove("${p.id}")' style="margin-left:auto">删除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderRadar() {
+  const q = $("radarSearch").value.trim().toLowerCase();
+  const list = [...busyPorts.values()].filter(p =>
+    !q || String(p.port).includes(q) || p.process.toLowerCase().includes(q));
+  $("radarBody").innerHTML = list.length ? list.map(p =>
+    `<tr><td><b>${p.port}</b></td><td>${esc(p.process)}</td><td style="color:var(--fg3)">${p.pid}</td>
+     <td><button class="btn ghost kill" onclick='killPort(${p.port})'>杀掉</button></td></tr>`
+  ).join("") : '<tr><td colspan="4" class="empty">当前没有监听中的端口</td></tr>';
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+
+async function doOp(op, id) {
+  try { toast(await invoke(op + "_project", { id })); } catch (e) { toast(String(e)); }
+  setTimeout(refreshAll, op === "start" ? 1500 : 400);
+}
+async function doRemove(id) {
+  if (!confirm("确认删除该项目配置？（不影响磁盘文件）")) return;
+  projects = await invoke("delete_project", { id });
+  renderProjects(); toast("已删除");
+}
+async function killPort(port) {
+  try { toast(await invoke("kill_port", { port })); } catch (e) { toast(String(e)); }
+  setTimeout(refreshAll, 300);
+}
+async function openBrowser(port) {
+  try { await invoke("open_url", { url: `http://localhost:${port}` }); }
+  catch (e) { toast(String(e)); }
+}
+
+function openEditor(id) {
+  editingId = id || "";
+  const p = projects.find(x => x.id === id);
+  $("mTitle").textContent = p ? "编辑项目" : "新建项目";
+  $("fName").value = p?.name || ""; $("fPath").value = p?.path || "";
+  $("fCmd").value = p?.command || ""; $("fPort").value = p?.port || "";
+  $("mask").classList.add("show");
+}
+function closeEditor() { $("mask").classList.remove("show"); }
+
+async function submitProject() {
+  const project = {
+    id: editingId, name: $("fName").value.trim(),
+    path: $("fPath").value.trim(), command: $("fCmd").value.trim(),
+    port: Number($("fPort").value)
+  };
+  if (!project.name || !project.path || !project.command || !project.port)
+    return toast("请填写完整");
+  projects = await invoke("save_project", { project });
+  closeEditor(); renderProjects(); toast("已保存");
+}
+
+refreshAll();
+setInterval(refreshAll, 5000);   // 状态自动巡检
+</script>
+</body>
+</html>

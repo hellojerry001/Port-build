@@ -1,0 +1,17 @@
+# Node / npm
+node_modules/
+
+# Rust build artifacts
+src-tauri/target/
+
+# Packaged bundles (large binaries, generated on build)
+*.dmg
+*.app/
+*.app
+
+# macOS
+.DS_Store
+
+# Local runtime data (project registry + logs live in ~/.portbutler)
+.portbutler/
+logs/

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PortButler",
+  "version": "0.1.0",
+  "identifier": "com.jerry.portbutler",
+  "build": { "frontendDist": "../ui" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "端口管家 PortButler", "width": 980, "height": 680,
+                  "minWidth": 860, "minHeight": 560 }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": true, "targets": ["app", "dmg"] }
+}
