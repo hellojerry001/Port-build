@@ -1,7 +1,9 @@
+mod dialog;
 mod open;
 mod ports;
 mod projects;
 mod publish;
+mod publishes;
 mod scaffolds;
 
 use projects::ProcTable;
@@ -41,12 +43,18 @@ pub fn run() {
             ports::list_ports,
             ports::kill_port,
             open::open_url,
+            dialog::pick_folder,
             projects::list_projects,
             projects::save_project,
             projects::delete_project,
             projects::start_project,
             projects::stop_project,
             publish::publish_project,
+            publish::publish_probe,
+            publish::check_dir,
+            publishes::list_publishes,
+            publishes::delete_publish,
+            publishes::clear_publishes,
             scaffolds::list_scaffolds,
             scaffolds::suggest_port,
             scaffolds::create_project

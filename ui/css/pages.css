@@ -1,0 +1,40 @@
+/* =============================================================================
+   pages.css · 页面骨架层
+   -----------------------------------------------------------------------------
+   只放「应用外壳 + 页面组合布局」，不含任何具体组件外观。
+   页面切换走 .page / .is-active，不再用 JS 直接写内联 display。
+   ============================================================================= */
+
+/* ============================== 应用外壳 ============================== */
+.app-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--px-20) var(--px-20) var(--px-26);
+  overflow-y: auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: var(--px-12);
+  margin-bottom: var(--px-16);
+}
+
+.page-title {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--ls-wide);
+}
+
+.page-sub { color: var(--c-text-3); font-size: var(--fs-12); }
+
+/* ============================== 页面显隐 ============================== */
+.page { display: none; }
+.page.is-active { display: block; }
+
+/* ============================== 项目页 ============================== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr));
+  gap: var(--gap-row);
+}

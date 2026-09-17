@@ -1,0 +1,52 @@
+/* =============================================================================
+   base.css · 基础层
+   -----------------------------------------------------------------------------
+   只放「与具体组件无关」的全局约定：盒模型重置、根排版、焦点环、动效关键帧。
+   任何带语义的样式（按钮长什么样、卡片长什么样）都归属 components.css。
+   ============================================================================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--c-app-bg);
+  color: var(--c-text);
+  font-family: var(--ff-sans);
+  font-size: var(--fs-13);
+  line-height: var(--lh-15);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 原生控件的字体族刻意不覆写：原实现就依赖 UA 默认，改了会改变按钮/输入框的字形 */
+
+/* 键盘焦点统一用灰阶描边，替掉系统默认的蓝色焦点圈（与整体灰阶基调冲突）。
+   文本输入框不套焦点环——浏览器对文本框在鼠标点击时也会命中 :focus-visible，
+   会让点击输入框时多出一圈描边；输入框的聚焦反馈走 .input:focus 的边框变色。 */
+button:focus,
+input:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: var(--hairline) solid var(--c-ring);
+  outline-offset: var(--px-1);
+}
+
+/* 布局辅助：只在语义类不便表达时使用 */
+.span-all { grid-column: 1 / -1; }   /* 栅格子项通栏 */
+.push-end { margin-left: auto; }     /* 把元素推到行尾 */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

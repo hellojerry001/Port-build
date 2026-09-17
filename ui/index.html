@@ -2,505 +2,247 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-  :root {
-    --bg: #16181c; --panel: rgba(255,255,255,.04); --panel-hi: rgba(255,255,255,.08);
-    --line: rgba(255,255,255,.09); --fg: rgba(255,255,255,.92); --fg2: rgba(255,255,255,.5);
-    --fg3: rgba(255,255,255,.32); --danger: rgba(255,255,255,.85);
-  }
-  body { background: var(--bg); color: var(--fg);
-    font: 13px/1.5 -apple-system, "PingFang SC", sans-serif; padding: 20px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
-  header .sub { color: var(--fg3); font-size: 12px; }
-  .tabs { display: flex; gap: 4px; margin-left: auto; }
-  .tab { padding: 6px 14px; border-radius: 8px; cursor: pointer; color: var(--fg2); }
-  .tab.on { background: var(--panel-hi); color: var(--fg); }
-  .btn { padding: 5px 12px; border-radius: 7px; border: none; cursor: pointer;
-    background: var(--panel-hi); color: var(--fg); font-size: 12px; }
-  .btn:hover { background: rgba(255,255,255,.14); }
-  .btn.ghost { background: transparent; color: var(--fg2); }
-  .btn.ghost:hover { background: var(--panel-hi); color: var(--fg); }
-  .btn.kill:hover { color: #fff; background: rgba(220,60,60,.55); }
-  .btn.primary { background: rgba(255,255,255,.16); font-weight: 600; }
-  .btn.primary:hover { background: rgba(255,255,255,.24); }
-  .btn[disabled] { opacity: .45; cursor: default; }
-
-  /* 项目卡片 */
-  .bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
-  .card { background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 14px 16px; min-width: 0; }
-  .card .row1 { display: flex; align-items: center; gap: 8px; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); }
-  .dot.on { background: rgba(120,220,150,.9); box-shadow: 0 0 6px rgba(120,220,150,.5); }
-  .card .name { font-weight: 600; font-size: 14px; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .card .port-chip { margin-left: auto; color: var(--fg2); font-size: 11px;
-    background: var(--panel); padding: 2px 8px; border-radius: 6px; flex: none; }
-  .card .tag { color: var(--fg3); font-size: 10px; border: 1px solid var(--line);
-    padding: 1px 6px; border-radius: 5px; flex: none; }
-  .card .meta { color: var(--fg3); font-size: 11px; margin-top: 6px; max-width: 100%;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .ops { display: flex; gap: 4px; margin-top: 10px; }
-
-  /* 端口雷达 */
-  .radar-bar { display: flex; gap: 8px; margin-bottom: 12px; }
-  input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line);
-    color: var(--fg); border-radius: 8px; padding: 6px 10px; font-size: 12px; outline: none; }
-  input:focus { border-color: rgba(255,255,255,.3); }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  th { color: var(--fg3); font-weight: 400; font-size: 11px; }
-  td { font-size: 12px; }
-  tr:hover td { background: var(--panel); }
-  .empty { color: var(--fg3); text-align: center; padding: 40px 0; }
-
-  /* 弹窗 */
-  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.55);
-    display: none; align-items: center; justify-content: center; }
-  .mask.show { display: flex; }
-  .modal { background: #1d2026; border: 1px solid var(--line); border-radius: 14px;
-    width: 440px; padding: 20px; }
-  .modal.wide { width: 560px; }
-  .modal h3 { font-size: 14px; margin-bottom: 14px; }
-  .field { margin-bottom: 10px; }
-  .field label { display: block; color: var(--fg2); font-size: 11px; margin-bottom: 4px; }
-  .field input { width: 100%; }
-  .field-row { display: flex; gap: 10px; }
-  .field-row .field { flex: 1; min-width: 0; }
-  .field-row .field.slim { flex: none; width: 110px; }
-  .modal .foot { display: flex; align-items: center; justify-content: flex-end;
-    gap: 8px; margin-top: 16px; }
-  .modal .foot .status { margin-right: auto; color: var(--fg2); font-size: 12px;
-    display: flex; align-items: center; }
-
-  /* 模板选择卡片 */
-  .tpl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-  .tpl { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px;
-    cursor: pointer; background: var(--panel); }
-  .tpl:hover { background: var(--panel-hi); }
-  .tpl.on { border-color: rgba(255,255,255,.42); background: var(--panel-hi); }
-  .tpl .t-name { font-size: 13px; font-weight: 600; }
-  .tpl .t-desc { color: var(--fg3); font-size: 11px; margin-top: 5px; }
-  .tpl .t-port { color: var(--fg2); font-size: 11px; margin-top: 7px; }
-  .hint { color: var(--fg3); font-size: 11px; min-height: 17px; margin-bottom: 2px; }
-  .hint.warn { color: rgba(255,200,120,.75); }
-  .spin { display: inline-block; width: 10px; height: 10px; margin-right: 7px;
-    border: 1.5px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.9);
-    border-radius: 50%; animation: sp .8s linear infinite; }
-  @keyframes sp { to { transform: rotate(360deg); } }
-
-  /* 发布面板 */
-  .urlrow { display: flex; gap: 6px; }
-  .urlrow input { flex: 1; min-width: 0; }
-  .pub-status { margin: 4px 0 2px; font-size: 12px; }
-  .pub-loading { color: var(--fg2); }
-  .pub-ok { color: rgba(120,220,150,.95); margin-bottom: 6px; }
-  .pub-err { color: #ff8a8a; white-space: pre-wrap; word-break: break-word; }
-  .pub-count { color: var(--fg3); margin-top: 10px; font-size: 12px; }
-  .pub-tip { color: var(--fg3); font-size: 11px; margin-top: 8px; line-height: 1.6; }
-
-  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    background: rgba(255,255,255,.12); backdrop-filter: blur(8px); color: var(--fg);
-    padding: 8px 18px; border-radius: 10px; font-size: 12px; display: none; }
-</style>
+<!-- 样式分层：令牌 → 基础 → 组件 → 页面。顺序不可颠倒 -->
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+<link rel="stylesheet" href="css/pages.css" />
 </head>
 <body>
-<header>
-  <h1>端口管家</h1><span class="sub">PortButler · 项目 & 端口管理</span>
-  <div class="tabs">
-    <div class="tab on" data-view="projects">项目</div>
-    <div class="tab" data-view="radar">端口雷达</div>
-  </div>
-</header>
+<!-- 左侧导航（由 rail.js 的 renderRail() 渲染） -->
+<nav class="rail" id="rail"></nav>
 
-<div id="view-projects">
-  <div class="bar">
-    <button class="btn ghost" onclick="openEditor()">手动添加</button>
-    <button class="btn primary" onclick="openTemplate()">＋ 从模板新建</button>
+<main class="app-main">
+  <div class="page-head">
+    <h1 class="page-title" id="pgTitle">项目管理</h1>
+    <span class="page-sub" id="pgSub"></span>
   </div>
-  <div class="grid" id="projGrid"></div>
-</div>
 
-<div id="view-radar" style="display:none">
-  <div class="radar-bar">
-    <input type="text" id="radarSearch" placeholder="搜索端口 / 进程…" style="flex:1" oninput="renderRadar()">
-    <button class="btn" onclick="refreshAll()">刷新</button>
-  </div>
-  <table>
-    <thead><tr><th>端口</th><th>进程</th><th>PID</th><th style="width:90px"></th></tr></thead>
-    <tbody id="radarBody"></tbody>
-  </table>
-</div>
+  <!-- ============================== 项目管理 ============================== -->
+  <section class="page is-active" id="page-projects">
+    <div class="toolbar">
+      <button class="btn is-ghost toolbar-lead" data-act="publish-list-open">
+        发布记录<span class="btn-count" id="pubCnt"></span>
+      </button>
+      <button class="btn is-ghost" data-act="project-add">手动添加</button>
+      <button class="btn is-primary" data-act="template-open">＋ 从模板新建</button>
+    </div>
+    <div class="card-grid" id="projGrid"></div>
+  </section>
 
-<!-- 从模板新建 -->
-<div class="mask" id="tplMask">
-  <div class="modal wide">
-    <h3>从模板新建项目</h3>
+  <!-- ============================== 端口雷达 ============================== -->
+  <section class="page" id="page-radar">
+    <div class="toolbar">
+      <input class="input search" type="text" id="radarSearch"
+             placeholder="搜索端口 / 进程…" data-oninput="radar-search" />
+      <button class="btn" data-act="refresh-all">刷新</button>
+    </div>
+    <table class="table">
+      <thead>
+        <tr><th>端口</th><th>进程</th><th>PID</th><th class="col-kill"></th></tr>
+      </thead>
+      <tbody id="radarBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ============================== 发布记录 ============================== -->
+  <section class="page" id="page-publishes">
+    <div class="toolbar">
+      <span class="toolbar-title" id="plCountPage">共 0 个记录</span>
+      <button class="btn is-ghost" data-act="publish-refresh">刷新</button>
+      <button class="btn is-ghost" id="plClearPage" data-act="publish-clear">清空记录</button>
+    </div>
+    <div class="pl-list is-page" id="plListPage"></div>
+  </section>
+
+  <!-- ============================== 模板库 ============================== -->
+  <section class="page" id="page-templates">
+    <div class="void-state">
+      <div class="void-title">模板库</div>
+      <div class="void-desc">内置脚手架模板从这里浏览、预览与管理。<br>当前可直接在项目管理页用「＋ 从模板新建」创建项目。</div>
+      <button class="btn" data-act="template-open-from-void">去「从模板新建」</button>
+    </div>
+  </section>
+
+  <!-- ============================== 设置 ============================== -->
+  <section class="page" id="page-settings">
+    <div class="void-state">
+      <div class="void-title">设置</div>
+      <div class="void-desc">默认端口起始值、模板存放目录、主题等偏好设置。<br>这一页还在排期里。</div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================== 从模板新建 ============================== -->
+<div class="overlay" id="tplModal">
+  <div class="modal is-wide">
+    <h3 class="modal-title">从模板新建项目</h3>
     <div class="tpl-grid" id="tplGrid"></div>
-    <div class="field"><label>项目名（列表显示用）</label>
-      <input type="text" id="tName" placeholder="如 客户管理后台" oninput="onNameInput()"></div>
-    <div class="field-row">
-      <div class="field"><label>目录名（小写字母 / 数字 / - _）</label>
-        <input type="text" id="tSlug" placeholder="customer-admin"></div>
-      <div class="field slim"><label>端口</label>
-        <input type="number" id="tPort" placeholder="8100"></div>
+
+    <div class="field">
+      <label class="field-label">项目名（列表显示用）</label>
+      <input class="input" type="text" id="tName" placeholder="如 客户管理后台" data-oninput="tpl-name" />
     </div>
-    <div class="field"><label>存放目录（项目会建在这里）</label>
-      <input type="text" id="tParent" placeholder="~/WorkBuddy"></div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field-label">目录名（小写字母 / 数字 / - _）</label>
+        <input class="input" type="text" id="tSlug" placeholder="customer-admin" data-oninput="tpl-slug" />
+      </div>
+      <div class="field is-slim">
+        <label class="field-label">端口</label>
+        <input class="input" type="number" id="tPort" placeholder="8100" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">存放目录（项目会建在这里）</label>
+      <div class="input-row">
+        <input class="input" type="text" id="tParent" placeholder="~/WorkBuddy" />
+        <button class="btn" data-act="pick-folder" data-input="tParent"
+                data-prompt="选择项目存放目录">选择文件夹</button>
+      </div>
+    </div>
+
     <div class="hint" id="tHint"></div>
-    <div class="foot">
-      <span class="status" id="tStatus"></span>
-      <button class="btn ghost" onclick="closeTemplate()">取消</button>
-      <button class="btn primary" id="tSubmit" onclick="submitTemplate()">创建并启动</button>
+
+    <div class="modal-foot">
+      <span class="modal-status" id="tStatus"></span>
+      <button class="btn is-ghost" data-act="template-close">取消</button>
+      <button class="btn is-primary" id="tSubmit" data-act="template-submit">创建并启动</button>
     </div>
   </div>
 </div>
 
-<!-- 手动添加 / 编辑 -->
-<div class="mask" id="mask">
+<!-- ============================== 手动添加 / 编辑 ============================== -->
+<div class="overlay" id="editorModal">
   <div class="modal">
-    <h3 id="mTitle">新建项目</h3>
-    <div class="field"><label>项目名称</label><input type="text" id="fName"></div>
-    <div class="field"><label>项目路径（绝对路径）</label><input type="text" id="fPath" placeholder="/Users/jerry/xxx"></div>
-    <div class="field"><label>启动命令（在项目目录执行，如 npm run dev）</label><input type="text" id="fCmd"></div>
-    <div class="field-row">
-      <div class="field"><label>端口</label><input type="number" id="fPort" placeholder="1420"></div>
-      <div class="field"><label>Node 版本（可选）</label><input type="text" id="fNode" placeholder="18.16.0"></div>
+    <h3 class="modal-title" id="mTitle">新建项目</h3>
+
+    <div class="field">
+      <label class="field-label">项目名称</label>
+      <input class="input" type="text" id="fName" />
     </div>
-    <div class="foot">
-      <button class="btn ghost" onclick="closeEditor()">取消</button>
-      <button class="btn" onclick="submitProject()">保存</button>
+
+    <div class="field">
+      <label class="field-label">项目路径（绝对路径）</label>
+      <div class="input-row">
+        <input class="input" type="text" id="fPath" placeholder="/Users/jerry/xxx" />
+        <button class="btn" data-act="pick-folder" data-input="fPath"
+                data-prompt="选择项目所在文件夹">选择文件夹</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">启动命令（在项目目录执行，如 npm run dev）</label>
+      <input class="input" type="text" id="fCmd" />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="field-label">端口</label>
+        <input class="input" type="number" id="fPort" placeholder="1420" />
+      </div>
+      <div class="field">
+        <label class="field-label">Node 版本（可选）</label>
+        <input class="input" type="text" id="fNode" placeholder="18.16.0" />
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn is-ghost" data-act="editor-close">取消</button>
+      <button class="btn" data-act="project-save">保存</button>
     </div>
   </div>
 </div>
 
-<!-- 发布 -->
-<div class="mask" id="pubMask">
-  <div class="modal" style="width:470px">
-    <h3>发布到线上 · 临时链接</h3>
-    <div class="field"><label>项目</label><div id="pubName" style="color:var(--fg);font-size:13px"></div></div>
-    <div class="field"><label>部署目录（静态构建产物，如 dist / build，仅含 HTML/CSS/JS/图片）</label>
-      <input type="text" id="pubPath" style="width:100%"></div>
-    <div id="pubStatus" class="pub-status"></div>
-    <div class="foot">
-      <button class="btn ghost" onclick="closePublish()">取消</button>
-      <button class="btn" id="pubBtn" onclick="doPublish()">发布</button>
+<!-- ============================== 发布 ============================== -->
+<div class="overlay" id="pubModal">
+  <div class="modal is-publish">
+    <h3 class="modal-title">发布到线上 · 临时链接</h3>
+
+    <div class="field">
+      <label class="field-label">项目</label>
+      <div class="field-static" id="pubName"></div>
     </div>
-    <div class="pub-tip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>60 分钟自动失效</b>；
+
+    <div class="field">
+      <label class="field-label">部署目录（静态构建产物，如 dist / build，仅含 HTML/CSS/JS/图片）</label>
+      <div class="input-row">
+        <input class="input" type="text" id="pubPath" data-oninput="pub-path" />
+        <button class="btn" data-act="pick-folder" data-input="pubPath"
+                data-prompt="选择构建产物目录（dist / build）">选择文件夹</button>
+      </div>
+      <div class="chip-bar">
+        <div class="chip-row" id="distChips"></div>
+        <button class="btn is-ghost" data-act="dist-probe">重新探测</button>
+      </div>
+      <div class="field-hint" id="pubHint"></div>
+    </div>
+
+    <div id="pubStatus" class="pub-status"></div>
+
+    <div class="modal-foot">
+      <button class="btn is-ghost" data-act="publish-history">历史记录</button>
+      <button class="btn is-ghost" data-act="publish-close">取消</button>
+      <button class="btn" id="pubBtn" data-act="pub-btn">发布</button>
+    </div>
+
+    <div class="pub-tip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>（以结果里的倒计时为准）；
       失效前点结果里的「认领」登录 Cloudflare 即可转永久（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。</div>
   </div>
 </div>
-<div id="toast"></div>
 
-<script>
-const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
-let projects = [], busyPorts = new Map(), editingId = "";
-let scaffolds = [], tplPicked = "", tplBusy = false;
-let pubId = "";
+<!-- ============================== 发布记录 ============================== -->
+<div class="overlay" id="pubListModal">
+  <div class="modal is-wide">
+    <div class="list-head">
+      <h3 class="modal-title">发布记录</h3>
+      <span class="toolbar-title" id="plCount"></span>
+      <button class="btn is-ghost" id="plClear" data-act="publish-clear">清空记录</button>
+    </div>
 
-const $ = id => document.getElementById(id);
-const LAST_PARENT = "pb.lastParent";
-function toast(msg) {
-  const t = $("toast"); t.textContent = msg; t.style.display = "block";
-  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3200);
-}
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+    <div class="pl-list" id="plList"></div>
 
-document.querySelectorAll(".tab").forEach(el => el.onclick = () => {
-  document.querySelectorAll(".tab").forEach(x => x.classList.remove("on"));
-  el.classList.add("on");
-  $("view-projects").style.display = el.dataset.view === "projects" ? "" : "none";
-  $("view-radar").style.display = el.dataset.view === "radar" ? "" : "none";
-});
+    <div class="pub-tip">临时链接由 Cloudflare 匿名临时账号承载，<b>未认领则 60 分钟后连同部署一起被删除</b>
+      （列表里会标成「已过期」）。「移除」只删本地记录，不影响 Cloudflare 上的部署。</div>
 
-async function refreshAll() {
-  try {
-    projects = await invoke("list_projects");
-    const ports = await invoke("list_ports");
-    busyPorts = new Map(ports.map(p => [p.port, p]));
-  } catch (e) { toast(String(e)); return; }
-  renderProjects(); renderRadar();
-}
+    <div class="modal-foot">
+      <button class="btn" data-act="publish-list-close">关闭</button>
+    </div>
+  </div>
+</div>
 
-function renderProjects() {
-  const grid = $("projGrid");
-  if (!projects.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">还没有项目，点右上角「从模板新建」或「手动添加」</div>';
-    return;
-  }
-  grid.innerHTML = projects.map(p => {
-    const live = busyPorts.has(p.port);
-    const tag = p.scaffold ? `<span class="tag">${esc(p.scaffold)}</span>` : "";
-    return `<div class="card">
-      <div class="row1">
-        <span class="dot ${live ? "on" : ""}"></span>
-        <span class="name">${esc(p.name)}</span>
-        ${tag}
-        <span class="port-chip">:${p.port}</span>
-      </div>
-      <div class="meta" title="${esc(p.path)}">${esc(p.path)} · ${esc(p.command)}</div>
-      <div class="ops">
-        ${live
-          ? `<button class="btn ghost" onclick='doOp("stop","${p.id}")'>停止</button>`
-          : `<button class="btn" onclick='doOp("start","${p.id}")'>启动</button>`}
-        <button class="btn ghost" onclick='openBrowser(${p.port})'>浏览器</button>
-        <button class="btn ghost" onclick='openPublish("${p.id}")'>发布</button>
-        <button class="btn ghost" onclick='openEditor("${p.id}")'>编辑</button>
-        <button class="btn ghost" onclick='doRemove("${p.id}")' style="margin-left:auto">删除</button>
-      </div>
-    </div>`;
-  }).join("");
-}
+<!-- ============================== 删除确认 ============================== -->
+<div class="overlay" id="delModal">
+  <div class="modal">
+    <h3 class="modal-title">删除项目</h3>
+    <div class="del-box">
+      <div class="del-name" id="delName"></div>
+      <div class="del-path" id="delPath"></div>
+    </div>
+    <label class="del-opt">
+      <input type="checkbox" id="delFiles" checked data-onchange="del-files" />
+      <span>同时删除磁盘上的项目文件夹</span>
+    </label>
+    <div class="del-tip" id="delTip"></div>
+    <div class="modal-foot">
+      <button class="btn is-ghost" id="delCancel" data-act="delete-close">取消</button>
+      <button class="btn is-danger" id="delBtn" data-act="delete-confirm">删除</button>
+    </div>
+  </div>
+</div>
 
-function renderRadar() {
-  const q = $("radarSearch").value.trim().toLowerCase();
-  const list = [...busyPorts.values()].filter(p =>
-    !q || String(p.port).includes(q) || p.process.toLowerCase().includes(q));
-  $("radarBody").innerHTML = list.length ? list.map(p =>
-    `<tr><td><b>${p.port}</b></td><td>${esc(p.process)}</td><td style="color:var(--fg3)">${p.pid}</td>
-     <td><button class="btn ghost kill" onclick='killPort(${p.port})'>杀掉</button></td></tr>`
-  ).join("") : '<tr><td colspan="4" class="empty">当前没有监听中的端口</td></tr>';
-}
+<div class="toast" id="toast"></div>
 
-async function doOp(op, id) {
-  try { toast(await invoke(op + "_project", { id })); } catch (e) { toast(String(e)); }
-  setTimeout(refreshAll, op === "start" ? 1500 : 400);
-}
-async function doRemove(id) {
-  if (!confirm("确认删除该项目配置？（不影响磁盘文件）")) return;
-  projects = await invoke("delete_project", { id });
-  renderProjects(); toast("已删除");
-}
-async function killPort(port) {
-  try { toast(await invoke("kill_port", { port })); } catch (e) { toast(String(e)); }
-  setTimeout(refreshAll, 300);
-}
-async function openBrowser(port) {
-  try { await invoke("open_url", { url: `http://localhost:${port}` }); }
-  catch (e) { toast(String(e)); }
-}
-
-/* ---------- 从模板新建 ---------- */
-
-async function openTemplate() {
-  closeEditor();
-  tplPicked = ""; tplBusy = false;
-  $("tName").value = ""; $("tSlug").value = ""; $("tPort").value = "";
-  $("tSlug")._manual = false;
-  $("tParent").value = localStorage.getItem(LAST_PARENT) || "~/WorkBuddy";
-  $("tHint").textContent = ""; $("tHint").className = "hint";
-  $("tStatus").textContent = ""; $("tSubmit").disabled = false;
-  $("tSubmit").textContent = "创建并启动";
-  $("tplMask").classList.add("show");
-  try {
-    scaffolds = await invoke("list_scaffolds");
-  } catch (e) { toast(String(e)); return; }
-  if (!scaffolds.length) {
-    $("tplGrid").innerHTML = '<div class="empty" style="grid-column:1/-1;padding:20px 0">还没装模板。把脚手架目录放进 ~/.portbutler/scaffolds 即可（需要含 .pb-scaffold.json）</div>';
-    $("tSubmit").disabled = true;
-    return;
-  }
-  pickTpl(scaffolds[0].key);
-  $("tName").focus();
-}
-
-function renderTplGrid() {
-  $("tplGrid").innerHTML = scaffolds.map(s => `
-    <div class="tpl ${s.key === tplPicked ? "on" : ""}" onclick="pickTpl('${esc(s.key)}')">
-      <div class="t-name">${esc(s.name)}</div>
-      <div class="t-desc">${esc(s.desc)}</div>
-      <div class="t-port">端口 ${s.portStart} 起 · Node ${esc(s.nodeVersion || "默认")}</div>
-    </div>`).join("");
-}
-
-async function pickTpl(key) {
-  tplPicked = key;
-  renderTplGrid();
-  const s = scaffolds.find(x => x.key === key);
-  $("tHint").className = "hint";
-  if (s && !s.nodeReady) {
-    $("tHint").textContent = `没找到 Node ${s.nodeVersion}，将退回系统默认版本启动`;
-    $("tHint").className = "hint warn";
-  }
-  try { $("tPort").value = await invoke("suggest_port", { scaffold: key }); } catch (e) {}
-}
-
-/* 中文项目名没法直接当目录名，只在名字是 ASCII 时自动派生 */
-function onNameInput() {
-  const slugEl = $("tSlug");
-  if (slugEl._manual) return;
-  const n = $("tName").value.trim();
-  slugEl.value = n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-function closeTemplate() { if (!tplBusy) $("tplMask").classList.remove("show"); }
-
-function setBusy(on, text) {
-  tplBusy = on;
-  $("tSubmit").disabled = on;
-  $("tSubmit").textContent = on ? "创建中…" : "创建并启动";
-  $("tStatus").innerHTML = text ? `<span class="spin"></span>${text}` : "";
-}
-
-async function submitTemplate() {
-  if (tplBusy) return;
-  const name = $("tName").value.trim();
-  const slug = $("tSlug").value.trim().toLowerCase();
-  const parent = $("tParent").value.trim();
-  const port = Number($("tPort").value) || 0;
-  if (!tplPicked) return toast("请先选一个模板");
-  if (!name) return toast("请填写项目名");
-  if (!slug) return toast("请填写目录名（英文或数字）");
-  if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) return toast("目录名只能用小写字母、数字、- 和 _，且以字母或数字开头");
-  if (!parent) return toast("请填写存放目录");
-
-  localStorage.setItem(LAST_PARENT, parent);
-  const t0 = Date.now();
-  setBusy(true, "正在克隆模板…");
-  const timer = setInterval(() => {
-    if (tplBusy) {
-      $("tStatus").innerHTML = `<span class="spin"></span>正在克隆模板… ${((Date.now() - t0) / 1000).toFixed(0)}s`;
-    }
-  }, 200);
-
-  let created = null;
-  try {
-    created = await invoke("create_project", { name, slug, parent, scaffold: tplPicked, port });
-    setBusy(true, "正在启动服务…");
-    await invoke("start_project", { id: created.id });
-  } catch (e) {
-    clearInterval(timer); setBusy(false, "");
-    return toast(String(e));
-  }
-  clearInterval(timer);
-  setBusy(false, "");
-  $("tplMask").classList.remove("show");
-  toast(`已创建 ${created.name}（:${created.port}），正在启动…`);
-  await refreshAll();
-  setTimeout(refreshAll, 3000);
-  setTimeout(() => openBrowser(created.port), 6000);
-}
-
-/* ---------- 手动添加 / 编辑 ---------- */
-
-function openEditor(id) {
-  editingId = id || "";
-  const p = projects.find(x => x.id === id);
-  $("mTitle").textContent = p ? "编辑项目" : "手动添加项目";
-  $("fName").value = p?.name || ""; $("fPath").value = p?.path || "";
-  $("fCmd").value = p?.command || ""; $("fPort").value = p?.port || "";
-  $("fNode").value = p?.nodeVersion || "";
-  $("mask").classList.add("show");
-}
-function closeEditor() { $("mask").classList.remove("show"); }
-
-async function submitProject() {
-  const project = {
-    id: editingId, name: $("fName").value.trim(),
-    path: $("fPath").value.trim(), command: $("fCmd").value.trim(),
-    port: Number($("fPort").value), scaffold: "", nodeVersion: $("fNode").value.trim()
-  };
-  const old = projects.find(x => x.id === editingId);
-  if (old) project.scaffold = old.scaffold || "";
-  if (!project.name || !project.path || !project.command || !project.port)
-    return toast("请填写完整（名称 / 路径 / 命令 / 端口）");
-  projects = await invoke("save_project", { project });
-  closeEditor(); renderProjects(); toast("已保存");
-}
-
-/* ---------- 发布到 Cloudflare 临时链接 ---------- */
-
-function openPublish(id) {
-  const p = projects.find(x => x.id === id);
-  if (!p) return;
-  pubId = id;
-  $("pubName").textContent = p.name;
-  $("pubPath").value = p.path + "/dist";
-  $("pubStatus").innerHTML = "";
-  $("pubBtn").disabled = false;
-  $("pubBtn").textContent = "发布";
-  $("pubBtn").onclick = doPublish;
-  $("pubMask").classList.add("show");
-}
-function closePublish() { $("pubMask").classList.remove("show"); }
-
-async function doPublish() {
-  const dist = $("pubPath").value.trim();
-  if (!dist) return toast("请填写部署目录");
-  $("pubBtn").disabled = true;
-  $("pubBtn").textContent = "发布中…";
-  $("pubStatus").innerHTML = '<div class="pub-loading">正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…</div>';
-  try {
-    const r = await invoke("publish_project", { distPath: dist });
-    if (r.ok && r.url) {
-      showPubResult(r);
-    } else {
-      const msg = (r.error || "未知错误").split("\n").slice(0, 12).join("\n");
-      $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(msg) + '</div>';
-      $("pubBtn").disabled = false;
-      $("pubBtn").textContent = "重试";
-    }
-  } catch (e) {
-    $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(String(e)) + '</div>';
-    $("pubBtn").disabled = false;
-    $("pubBtn").textContent = "重试";
-  }
-}
-
-function showPubResult(r) {
-  const isTemp = !!r.claim_url;
-  let html = isTemp
-    ? '<div class="pub-ok">✅ 发布成功，临时链接 60 分钟后失效</div>'
-    : '<div class="pub-ok">✅ 发布成功，已部署到你的 Cloudflare 账号（长期有效）</div>';
-  html +=
-    '<div class="field"><label>Website URL（任何人可访问）</label>' +
-      '<div class="urlrow"><input id="pubUrl" readonly value="' + esc(r.url) + '">' +
-      '<button class="btn" onclick="copyText(\'pubUrl\')">复制</button>' +
-      '<button class="btn ghost" onclick="openLink(\'' + esc(r.url) + '\')">打开</button></div></div>';
-  if (isTemp) {
-    html +=
-      '<div class="field"><label>认领链接（60 分钟内登录 Cloudflare 可转永久）</label>' +
-        '<div class="urlrow"><input id="pubClaim" readonly value="' + esc(r.claim_url) + '">' +
-        '<button class="btn" onclick="copyText(\'pubClaim\')">复制</button>' +
-        '<button class="btn ghost" onclick="openLink(\'' + esc(r.claim_url) + '\')">认领</button></div></div>' +
-      '<div class="pub-count" id="pubCount"></div>';
-  } else {
-    html += '<div class="pub-tip">部署在你的 Cloudflare 账号下，长期有效。不再需要时可到 Cloudflare 控制台删除对应 Worker。</div>';
-  }
-  $("pubStatus").innerHTML = html;
-  $("pubBtn").textContent = "关闭";
-  $("pubBtn").onclick = closePublish;
-  if (isTemp) {
-    const expiry = Date.now() + 60 * 60 * 1000;
-    const tick = () => {
-      const ms = expiry - Date.now();
-      if (ms <= 0) { $("pubCount").textContent = "链接已过期，请重新发布"; return; }
-      const m = Math.floor(ms / 60000), s = Math.floor(ms % 60000 / 1000);
-      $("pubCount").textContent = `剩余 ${m} 分 ${s} 秒`;
-      setTimeout(tick, 1000);
-    };
-    tick();
-  }
-}
-
-function copyText(id) {
-  const v = $(id).value;
-  (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject())
-    .then(() => toast("已复制"))
-    .catch(() => toast("复制失败，请手动复制"));
-}
-function openLink(u) {
-  invoke("open_url", { url: u }).catch(() => { try { window.open(u, "_blank"); } catch (_) {} });
-}
-
-$("tSlug").addEventListener("input", () => {
-  $("tSlug")._manual = $("tSlug").value.trim().length > 0;
-});
-
-refreshAll();
-setInterval(refreshAll, 5000);   // 状态自动巡检
-</script>
+<!-- 脚本按依赖顺序加载：基础设施 → 组件工厂 → 各页面模块 → 启动 -->
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/rail.js"></script>
+<script src="js/projects.js"></script>
+<script src="js/radar.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/publish.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

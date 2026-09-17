@@ -132,7 +132,7 @@ fn validate_slug(slug: &str) -> Result<(), String> {
 }
 
 /// 展开开头的 `~` —— Rust 的 PathBuf 不会自动展开，而用户习惯写 `~/WorkBuddy`
-fn expand_tilde(p: &str) -> PathBuf {
+pub(crate) fn expand_tilde(p: &str) -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
     if p == "~" {
         return PathBuf::from(home);

@@ -1,0 +1,34 @@
+/* =============================================================================
+   main.js · 装配与启动
+   -----------------------------------------------------------------------------
+   跨模块的通用动作在这里注册，最后统一启动。各模块自己的动作注册在各自文件末尾。
+   ============================================================================= */
+
+/* 弹窗里所有「选择文件夹」按钮共用：从 data-input / data-prompt 取参数 */
+on("pick-folder", el => chooseFolder(el.dataset.input, el.dataset.prompt));
+
+/* 工具栏「刷新」：项目列表 + 端口雷达一起拉 */
+on("refresh-all", () => refreshAll());
+
+/* 删除确认是唯一的模态操作，Esc 关闭时保持与点击「取消」一致 */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && modalOpen("delModal")) closeDelete();
+});
+
+/* ------------------------------ 启动 ------------------------------ */
+function boot() {
+  bindDelegates();
+  renderRail();
+  goPage("projects");
+  refreshAll();
+  refreshPublishes();
+
+  setInterval(refreshAll, 5000);   // 状态自动巡检
+
+  // 发布记录带过期倒计时，弹窗或页面打开时跟着刷新
+  setInterval(() => {
+    if (modalOpen("pubListModal") || curPage === "publishes") refreshPublishes();
+  }, 5000);
+}
+
+boot();
