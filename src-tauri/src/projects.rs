@@ -16,34 +16,36 @@ pub struct Project {
     pub path: String,
     pub command: String,
     pub port: u16,
+    /// 来源脚手架 key（手工添加的项目为空串）
+    #[serde(default)]
+    pub scaffold: String,
+    /// 该项目需要的 Node 版本，如 "18.16.0"；为空则沿用登录 shell 默认
+    #[serde(default)]
+    pub node_version: String,
 }
 
-fn data_dir() -> PathBuf {
+pub fn data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     let dir = PathBuf::from(home).join(".portbutler");
     let _ = fs::create_dir_all(dir.join("logs"));
     dir
 }
 
-fn load() -> Vec<Project> {
+pub fn load() -> Vec<Project> {
     fs::read_to_string(data_dir().join("projects.json"))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
 }
 
-fn save(list: &[Project]) -> Result<(), String> {
+pub fn save(list: &[Project]) -> Result<(), String> {
     let json = serde_json::to_string_pretty(list).map_err(|e| e.to_string())?;
     fs::write(data_dir().join("projects.json"), json).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn list_projects() -> Vec<Project> {
-    load()
-}
-
-#[tauri::command]
-pub fn save_project(mut project: Project) -> Result<Vec<Project>, String> {
+/// 新增或更新一个项目，返回（该项目本身, 最新列表）。
+/// 同时被 `save_project` 命令与「从脚手架新建项目」复用。
+pub fn upsert(mut project: Project) -> Result<(Project, Vec<Project>), String> {
     let mut list = load();
     if project.id.is_empty() {
         project.id = format!(
@@ -53,14 +55,54 @@ pub fn save_project(mut project: Project) -> Result<Vec<Project>, String> {
                 .unwrap()
                 .as_millis()
         );
-        list.push(project);
+        list.push(project.clone());
     } else if let Some(x) = list.iter_mut().find(|x| x.id == project.id) {
-        *x = project;
+        *x = project.clone();
     } else {
-        list.push(project);
+        list.push(project.clone());
     }
     save(&list)?;
-    Ok(list)
+    Ok((project, list))
+}
+
+/// 找到某个 Node 版本对应的 `bin` 目录。
+/// 覆盖 fnm（默认目录 + macOS Application Support）与 nvm 两种常见布局。
+pub fn node_bin_dir(version: &str) -> Option<PathBuf> {
+    if version.is_empty() {
+        return None;
+    }
+    let home = std::env::var("HOME").ok()?;
+    let rel = format!("node-versions/v{version}/installation/bin");
+    let candidates = [
+        PathBuf::from(&home).join(".local/share/fnm").join(&rel),
+        PathBuf::from(&home)
+            .join("Library/Application Support/fnm")
+            .join(&rel),
+        PathBuf::from(&home)
+            .join(".nvm/versions/node")
+            .join(format!("v{version}/bin")),
+        PathBuf::from(&home).join(".fnm").join(&rel),
+    ];
+    candidates.into_iter().find(|p| p.is_dir())
+}
+
+/// 把启动命令包一层：指定了 Node 版本就把它前置到 PATH。
+/// 比 `fnm exec` 更快更确定 —— 不依赖 fnm 本体在 PATH 上，也省掉 fnm 的启动开销。
+pub fn wrap_command(p: &Project) -> String {
+    match node_bin_dir(&p.node_version) {
+        Some(dir) => format!("export PATH=\"{}:$PATH\"; {}", dir.display(), p.command),
+        None => p.command.clone(),
+    }
+}
+
+#[tauri::command]
+pub fn list_projects() -> Vec<Project> {
+    load()
+}
+
+#[tauri::command]
+pub fn save_project(project: Project) -> Result<Vec<Project>, String> {
+    upsert(project).map(|(_, list)| list)
 }
 
 #[tauri::command]
@@ -81,7 +123,7 @@ pub fn start_project(id: String, state: tauri::State<'_, ProcTable>) -> Result<u
         .map_err(|e| e.to_string())?;
     let child = Command::new("zsh")
         .arg("-lc")
-        .arg(&p.command)
+        .arg(wrap_command(&p))
         .current_dir(&p.path)
         .stdout(Stdio::from(
             log.try_clone().map_err(|e| e.to_string())?,
@@ -91,7 +133,7 @@ pub fn start_project(id: String, state: tauri::State<'_, ProcTable>) -> Result<u
         .spawn()
         .map_err(|e| format!("启动失败: {e}"))?;
     let pid = child.id();
-    state.lock().unwrap().insert(id, pid);
+    state.lock().unwrap().insert(id.clone(), pid);
     std::mem::forget(child); // 交由 OS 托管，应用退出不连带杀进程
     Ok(pid)
 }

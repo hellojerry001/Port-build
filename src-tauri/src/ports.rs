@@ -8,8 +8,9 @@ pub struct PortInfo {
     pub process: String,
 }
 
-#[tauri::command]
-pub fn list_ports() -> Result<Vec<PortInfo>, String> {
+/// 扫描当前所有 TCP 监听端口。
+/// 供 `list_ports` 命令与脚手架端口分配（新建项目时避开已占用端口）复用。
+pub fn scan_ports() -> Result<Vec<PortInfo>, String> {
     let out = Command::new("lsof")
         .args(["-nP", "-iTCP", "-sTCP:LISTEN"])
         .output()
@@ -41,6 +42,11 @@ pub fn list_ports() -> Result<Vec<PortInfo>, String> {
     }
     list.sort_by_key(|p| p.port);
     Ok(list)
+}
+
+#[tauri::command]
+pub fn list_ports() -> Result<Vec<PortInfo>, String> {
+    scan_ports()
 }
 
 #[tauri::command]

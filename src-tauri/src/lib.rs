@@ -1,6 +1,7 @@
 mod open;
 mod ports;
 mod projects;
+mod scaffolds;
 
 use projects::ProcTable;
 use std::collections::HashMap;
@@ -43,7 +44,10 @@ pub fn run() {
             projects::save_project,
             projects::delete_project,
             projects::start_project,
-            projects::stop_project
+            projects::stop_project,
+            scaffolds::list_scaffolds,
+            scaffolds::suggest_port,
+            scaffolds::create_project
         ])
         .setup(|app| {
             // 菜单栏（托盘）常驻

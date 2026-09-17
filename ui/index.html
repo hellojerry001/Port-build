@@ -23,8 +23,12 @@
   .btn.ghost { background: transparent; color: var(--fg2); }
   .btn.ghost:hover { background: var(--panel-hi); color: var(--fg); }
   .btn.kill:hover { color: #fff; background: rgba(220,60,60,.55); }
+  .btn.primary { background: rgba(255,255,255,.16); font-weight: 600; }
+  .btn.primary:hover { background: rgba(255,255,255,.24); }
+  .btn[disabled] { opacity: .45; cursor: default; }
 
   /* 项目卡片 */
+  .bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
   .card { background: var(--panel); border: 1px solid var(--line);
     border-radius: 12px; padding: 14px 16px; min-width: 0; }
@@ -35,6 +39,8 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .port-chip { margin-left: auto; color: var(--fg2); font-size: 11px;
     background: var(--panel); padding: 2px 8px; border-radius: 6px; flex: none; }
+  .card .tag { color: var(--fg3); font-size: 10px; border: 1px solid var(--line);
+    padding: 1px 6px; border-radius: 5px; flex: none; }
   .card .meta { color: var(--fg3); font-size: 11px; margin-top: 6px; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .ops { display: flex; gap: 4px; margin-top: 10px; }
@@ -43,6 +49,7 @@
   .radar-bar { display: flex; gap: 8px; margin-bottom: 12px; }
   input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line);
     color: var(--fg); border-radius: 8px; padding: 6px 10px; font-size: 12px; outline: none; }
+  input:focus { border-color: rgba(255,255,255,.3); }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
   th { color: var(--fg3); font-weight: 400; font-size: 11px; }
@@ -56,11 +63,35 @@
   .mask.show { display: flex; }
   .modal { background: #1d2026; border: 1px solid var(--line); border-radius: 14px;
     width: 440px; padding: 20px; }
+  .modal.wide { width: 560px; }
   .modal h3 { font-size: 14px; margin-bottom: 14px; }
   .field { margin-bottom: 10px; }
   .field label { display: block; color: var(--fg2); font-size: 11px; margin-bottom: 4px; }
   .field input { width: 100%; }
-  .modal .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; min-width: 0; }
+  .field-row .field.slim { flex: none; width: 110px; }
+  .modal .foot { display: flex; align-items: center; justify-content: flex-end;
+    gap: 8px; margin-top: 16px; }
+  .modal .foot .status { margin-right: auto; color: var(--fg2); font-size: 12px;
+    display: flex; align-items: center; }
+
+  /* 模板选择卡片 */
+  .tpl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .tpl { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px;
+    cursor: pointer; background: var(--panel); }
+  .tpl:hover { background: var(--panel-hi); }
+  .tpl.on { border-color: rgba(255,255,255,.42); background: var(--panel-hi); }
+  .tpl .t-name { font-size: 13px; font-weight: 600; }
+  .tpl .t-desc { color: var(--fg3); font-size: 11px; margin-top: 5px; }
+  .tpl .t-port { color: var(--fg2); font-size: 11px; margin-top: 7px; }
+  .hint { color: var(--fg3); font-size: 11px; min-height: 17px; margin-bottom: 2px; }
+  .hint.warn { color: rgba(255,200,120,.75); }
+  .spin { display: inline-block; width: 10px; height: 10px; margin-right: 7px;
+    border: 1.5px solid rgba(255,255,255,.25); border-top-color: rgba(255,255,255,.9);
+    border-radius: 50%; animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
     background: rgba(255,255,255,.12); backdrop-filter: blur(8px); color: var(--fg);
     padding: 8px 18px; border-radius: 10px; font-size: 12px; display: none; }
@@ -76,8 +107,9 @@
 </header>
 
 <div id="view-projects">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-    <button class="btn" onclick="openEditor()">＋ 新建项目</button>
+  <div class="bar">
+    <button class="btn ghost" onclick="openEditor()">手动添加</button>
+    <button class="btn primary" onclick="openTemplate()">＋ 从模板新建</button>
   </div>
   <div class="grid" id="projGrid"></div>
 </div>
@@ -93,13 +125,39 @@
   </table>
 </div>
 
+<div class="mask" id="tplMask">
+  <div class="modal wide">
+    <h3>从模板新建项目</h3>
+    <div class="tpl-grid" id="tplGrid"></div>
+    <div class="field"><label>项目名（列表显示用）</label>
+      <input type="text" id="tName" placeholder="如 客户管理后台" oninput="onNameInput()"></div>
+    <div class="field-row">
+      <div class="field"><label>目录名（小写字母 / 数字 / - _）</label>
+        <input type="text" id="tSlug" placeholder="customer-admin"></div>
+      <div class="field slim"><label>端口</label>
+        <input type="number" id="tPort" placeholder="8100"></div>
+    </div>
+    <div class="field"><label>存放目录（项目会建在这里）</label>
+      <input type="text" id="tParent" placeholder="~/WorkBuddy"></div>
+    <div class="hint" id="tHint"></div>
+    <div class="foot">
+      <span class="status" id="tStatus"></span>
+      <button class="btn ghost" onclick="closeTemplate()">取消</button>
+      <button class="btn primary" id="tSubmit" onclick="submitTemplate()">创建并启动</button>
+    </div>
+  </div>
+</div>
+
 <div class="mask" id="mask">
   <div class="modal">
     <h3 id="mTitle">新建项目</h3>
     <div class="field"><label>项目名称</label><input type="text" id="fName"></div>
     <div class="field"><label>项目路径（绝对路径）</label><input type="text" id="fPath" placeholder="/Users/jerry/xxx"></div>
     <div class="field"><label>启动命令（在项目目录执行，如 npm run dev）</label><input type="text" id="fCmd"></div>
-    <div class="field"><label>端口</label><input type="number" id="fPort" placeholder="1420"></div>
+    <div class="field-row">
+      <div class="field"><label>端口</label><input type="number" id="fPort" placeholder="1420"></div>
+      <div class="field"><label>Node 版本（可选）</label><input type="text" id="fNode" placeholder="18.16.0"></div>
+    </div>
     <div class="foot">
       <button class="btn ghost" onclick="closeEditor()">取消</button>
       <button class="btn" onclick="submitProject()">保存</button>
@@ -111,12 +169,15 @@
 <script>
 const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
 let projects = [], busyPorts = new Map(), editingId = "";
+let scaffolds = [], tplPicked = "", tplBusy = false;
 
 const $ = id => document.getElementById(id);
+const LAST_PARENT = "pb.lastParent";
 function toast(msg) {
   const t = $("toast"); t.textContent = msg; t.style.display = "block";
-  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600);
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3200);
 }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
 
 document.querySelectorAll(".tab").forEach(el => el.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.remove("on"));
@@ -137,15 +198,17 @@ async function refreshAll() {
 function renderProjects() {
   const grid = $("projGrid");
   if (!projects.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">还没有项目，点右上角「新建项目」添加</div>';
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">还没有项目，点右上角「从模板新建」或「手动添加」</div>';
     return;
   }
   grid.innerHTML = projects.map(p => {
     const live = busyPorts.has(p.port);
+    const tag = p.scaffold ? `<span class="tag">${esc(p.scaffold)}</span>` : "";
     return `<div class="card">
       <div class="row1">
         <span class="dot ${live ? "on" : ""}"></span>
         <span class="name">${esc(p.name)}</span>
+        ${tag}
         <span class="port-chip">:${p.port}</span>
       </div>
       <div class="meta" title="${esc(p.path)}">${esc(p.path)} · ${esc(p.command)}</div>
@@ -171,8 +234,6 @@ function renderRadar() {
   ).join("") : '<tr><td colspan="4" class="empty">当前没有监听中的端口</td></tr>';
 }
 
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
-
 async function doOp(op, id) {
   try { toast(await invoke(op + "_project", { id })); } catch (e) { toast(String(e)); }
   setTimeout(refreshAll, op === "start" ? 1500 : 400);
@@ -191,12 +252,115 @@ async function openBrowser(port) {
   catch (e) { toast(String(e)); }
 }
 
+/* ---------- 从模板新建 ---------- */
+
+async function openTemplate() {
+  closeEditor();
+  tplPicked = ""; tplBusy = false;
+  $("tName").value = ""; $("tSlug").value = ""; $("tPort").value = "";
+  $("tSlug")._manual = false;
+  $("tParent").value = localStorage.getItem(LAST_PARENT) || "~/WorkBuddy";
+  $("tHint").textContent = ""; $("tHint").className = "hint";
+  $("tStatus").textContent = ""; $("tSubmit").disabled = false;
+  $("tSubmit").textContent = "创建并启动";
+  $("tplMask").classList.add("show");
+  try {
+    scaffolds = await invoke("list_scaffolds");
+  } catch (e) { toast(String(e)); return; }
+  if (!scaffolds.length) {
+    $("tplGrid").innerHTML = '<div class="empty" style="grid-column:1/-1;padding:20px 0">还没装模板。把脚手架目录放进 ~/.portbutler/scaffolds 即可（需要含 .pb-scaffold.json）</div>';
+    $("tSubmit").disabled = true;
+    return;
+  }
+  pickTpl(scaffolds[0].key);
+  $("tName").focus();
+}
+
+function renderTplGrid() {
+  $("tplGrid").innerHTML = scaffolds.map(s => `
+    <div class="tpl ${s.key === tplPicked ? "on" : ""}" onclick="pickTpl('${esc(s.key)}')">
+      <div class="t-name">${esc(s.name)}</div>
+      <div class="t-desc">${esc(s.desc)}</div>
+      <div class="t-port">端口 ${s.portStart} 起 · Node ${esc(s.nodeVersion || "默认")}</div>
+    </div>`).join("");
+}
+
+async function pickTpl(key) {
+  tplPicked = key;
+  renderTplGrid();
+  const s = scaffolds.find(x => x.key === key);
+  $("tHint").className = "hint";
+  if (s && !s.nodeReady) {
+    $("tHint").textContent = `没找到 Node ${s.nodeVersion}，将退回系统默认版本启动`;
+    $("tHint").className = "hint warn";
+  }
+  try { $("tPort").value = await invoke("suggest_port", { scaffold: key }); } catch (e) {}
+}
+
+/* 中文项目名没法直接当目录名，只在名字是 ASCII 时自动派生 */
+function onNameInput() {
+  const slugEl = $("tSlug");
+  if (slugEl._manual) return;
+  const n = $("tName").value.trim();
+  slugEl.value = n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function closeTemplate() { if (!tplBusy) $("tplMask").classList.remove("show"); }
+
+function setBusy(on, text) {
+  tplBusy = on;
+  $("tSubmit").disabled = on;
+  $("tSubmit").textContent = on ? "创建中…" : "创建并启动";
+  $("tStatus").innerHTML = text ? `<span class="spin"></span>${text}` : "";
+}
+
+async function submitTemplate() {
+  if (tplBusy) return;
+  const name = $("tName").value.trim();
+  const slug = $("tSlug").value.trim().toLowerCase();
+  const parent = $("tParent").value.trim();
+  const port = Number($("tPort").value) || 0;
+  if (!tplPicked) return toast("请先选一个模板");
+  if (!name) return toast("请填写项目名");
+  if (!slug) return toast("请填写目录名（英文或数字）");
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) return toast("目录名只能用小写字母、数字、- 和 _，且以字母或数字开头");
+  if (!parent) return toast("请填写存放目录");
+
+  localStorage.setItem(LAST_PARENT, parent);
+  const t0 = Date.now();
+  setBusy(true, "正在克隆模板…");
+  const timer = setInterval(() => {
+    if (tplBusy) {
+      $("tStatus").innerHTML = `<span class="spin"></span>正在克隆模板… ${((Date.now() - t0) / 1000).toFixed(0)}s`;
+    }
+  }, 200);
+
+  let created = null;
+  try {
+    created = await invoke("create_project", { name, slug, parent, scaffold: tplPicked, port });
+    setBusy(true, "正在启动服务…");
+    await invoke("start_project", { id: created.id });
+  } catch (e) {
+    clearInterval(timer); setBusy(false, "");
+    return toast(String(e));
+  }
+  clearInterval(timer);
+  setBusy(false, "");
+  $("tplMask").classList.remove("show");
+  toast(`已创建 ${created.name}（:${created.port}），正在启动…`);
+  await refreshAll();
+  setTimeout(refreshAll, 3000);
+  setTimeout(() => openBrowser(created.port), 6000);
+}
+
+/* ---------- 手动添加 / 编辑 ---------- */
+
 function openEditor(id) {
   editingId = id || "";
   const p = projects.find(x => x.id === id);
-  $("mTitle").textContent = p ? "编辑项目" : "新建项目";
+  $("mTitle").textContent = p ? "编辑项目" : "手动添加项目";
   $("fName").value = p?.name || ""; $("fPath").value = p?.path || "";
   $("fCmd").value = p?.command || ""; $("fPort").value = p?.port || "";
+  $("fNode").value = p?.nodeVersion || "";
   $("mask").classList.add("show");
 }
 function closeEditor() { $("mask").classList.remove("show"); }
@@ -205,13 +369,19 @@ async function submitProject() {
   const project = {
     id: editingId, name: $("fName").value.trim(),
     path: $("fPath").value.trim(), command: $("fCmd").value.trim(),
-    port: Number($("fPort").value)
+    port: Number($("fPort").value), scaffold: "", nodeVersion: $("fNode").value.trim()
   };
+  const old = projects.find(x => x.id === editingId);
+  if (old) project.scaffold = old.scaffold || "";
   if (!project.name || !project.path || !project.command || !project.port)
-    return toast("请填写完整");
+    return toast("请填写完整（名称 / 路径 / 命令 / 端口）");
   projects = await invoke("save_project", { project });
   closeEditor(); renderProjects(); toast("已保存");
 }
+
+$("tSlug").addEventListener("input", () => {
+  $("tSlug")._manual = $("tSlug").value.trim().length > 0;
+});
 
 refreshAll();
 setInterval(refreshAll, 5000);   // 状态自动巡检
