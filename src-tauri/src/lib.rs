@@ -1,6 +1,7 @@
 mod open;
 mod ports;
 mod projects;
+mod publish;
 mod scaffolds;
 
 use projects::ProcTable;
@@ -45,6 +46,7 @@ pub fn run() {
             projects::delete_project,
             projects::start_project,
             projects::stop_project,
+            publish::publish_project,
             scaffolds::list_scaffolds,
             scaffolds::suggest_port,
             scaffolds::create_project
