@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="css/base.css" />
 <link rel="stylesheet" href="css/components.css" />
 <link rel="stylesheet" href="css/pages.css" />
+<!-- 主题必须在 body 之前定好，否则会先闪一帧深色 -->
+<script src="js/theme.js"></script>
 </head>
 <body>
 <!-- 左侧导航（由 rail.js 的 renderRail() 渲染） -->
@@ -235,7 +237,11 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- 脚本按依赖顺序加载：基础设施 → 组件工厂 → 各页面模块 → 启动 -->
+<!-- 主题切换浮层（内容由 rail.js 渲染） -->
+<div class="theme-menu" id="themeMenu"></div>
+
+<!-- 脚本按依赖顺序加载：基础设施 → 组件工厂 → 各页面模块 → 启动
+     （theme.js 已在 head 里加载，这里不重复） -->
 <script src="js/core.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/rail.js"></script>

@@ -97,6 +97,62 @@
 /* 把底部项推到底 */
 .rail-sp { flex: 1; }
 
+/* ============================== 主题切换浮层 ============================== */
+/* 从 rail 底部按钮右侧弹出。定位用 fixed，贴着 rail 右边缘 */
+.theme-menu {
+  position: fixed;
+  left: calc(var(--rail-w) + var(--px-6));
+  bottom: var(--px-14);
+  min-width: var(--px-90);
+  padding: var(--px-4);
+  background: var(--c-modal);
+  border: var(--hairline) solid var(--c-border);
+  border-radius: var(--r-10);
+  display: none;
+  z-index: var(--z-tip);
+}
+
+.theme-menu.is-open { display: block; }
+
+.theme-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--px-8);
+  width: 100%;
+  padding: var(--px-6) var(--px-9);
+  border: none;
+  background: transparent;
+  color: var(--c-text-2);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  text-align: left;
+  border-radius: var(--r-7);
+  cursor: pointer;
+}
+
+.theme-opt:hover { background: var(--c-surface-3); color: var(--c-text); }
+.theme-opt.is-on { background: var(--c-surface-4); color: var(--c-text); }
+
+.theme-opt svg {
+  width: var(--menu-icon);
+  height: var(--menu-icon);
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 选中标记推到行尾 */
+.theme-opt .tick {
+  margin-left: auto;
+  color: var(--c-text-2);
+  opacity: 0;
+}
+
+.theme-opt.is-on .tick { opacity: 1; }
+
 /* ============================== 工具条 ============================== */
 /* 页面顶部按钮行。默认右对齐（沿用既有版式），左侧内容用 .toolbar-lead 顶开 */
 .toolbar {
@@ -445,7 +501,7 @@
 }
 
 .chip:hover { background: var(--c-surface-7); color: var(--c-text); }
-.chip.is-on { background: var(--c-surface-8); color: var(--c-text-inv); }
+.chip.is-on { background: var(--c-accent-bg); color: var(--c-text-inv); }
 .chip small { opacity: .6; margin-left: var(--px-3); }
 
 /* chips + 右侧动作按钮 */
@@ -653,6 +709,8 @@
   border-radius: var(--r-10);
   font-size: var(--fs-12);
   display: none;
+  /* 用外描边代替 border：白底浮层在浅色主题下需要边界，又不该改变盒模型尺寸 */
+  box-shadow: 0 0 0 var(--hairline) var(--c-toast-ring);
 }
 
 .toast.is-open { display: block; }
