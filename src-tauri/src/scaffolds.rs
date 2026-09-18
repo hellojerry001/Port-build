@@ -266,6 +266,9 @@ pub fn create_project(
         port,
         scaffold: tpl.key.clone(),
         node_version: tpl.node_version.clone(),
+        // 模板目前都是 Web 脚手架；以后加了桌面端模板就从这个描述文件里读
+        kind: projects::KIND_WEB.to_string(),
+        build_command: String::new(),
     };
     let (project, _) = projects::upsert(project)?;
     Ok(project)

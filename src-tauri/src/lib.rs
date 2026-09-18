@@ -1,3 +1,4 @@
+mod build;
 mod dialog;
 mod open;
 mod ports;
@@ -6,6 +7,7 @@ mod publish;
 mod publishes;
 mod scaffolds;
 
+use build::BuildTable;
 use projects::ProcTable;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -38,17 +40,24 @@ fn toggle_main(app: &AppHandle) {
 
 pub fn run() {
     tauri::Builder::default()
-        .manage(Mutex::new(HashMap::<String, u32>::new()) as ProcTable)
+        // 进程表从磁盘恢复：应用重启后仍认得上一次拉起来的项目
+        .manage(Mutex::new(projects::load_running()) as ProcTable)
+        .manage(Mutex::new(HashMap::<String, u32>::new()) as BuildTable)
         .invoke_handler(tauri::generate_handler![
             ports::list_ports,
             ports::kill_port,
             open::open_url,
+            open::show_in_finder,
             dialog::pick_folder,
             projects::list_projects,
             projects::save_project,
             projects::delete_project,
             projects::start_project,
             projects::stop_project,
+            projects::list_running,
+            build::build_dmg,
+            build::build_status,
+            build::cancel_build,
             publish::publish_project,
             publish::publish_probe,
             publish::check_dir,

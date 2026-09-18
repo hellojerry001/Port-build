@@ -22,12 +22,15 @@
 
   <!-- ============================== 项目管理 ============================== -->
   <section class="page is-active" id="page-projects">
+    <!-- 两类项目分开管理：Web 起 HTTP 服务用浏览器看，Mac 起原生窗口并产出 .dmg -->
+    <div class="tabs" id="projTabs"></div>
+
     <div class="toolbar">
       <button class="btn is-ghost toolbar-lead" data-act="publish-list-open">
         发布记录<span class="btn-count" id="pubCnt"></span>
       </button>
       <button class="btn is-ghost" data-act="project-add">手动添加</button>
-      <button class="btn is-primary" data-act="template-open">＋ 从模板新建</button>
+      <button class="btn is-primary" id="btnFromTpl" data-act="template-open">＋ 从模板新建</button>
     </div>
     <div class="card-grid" id="projGrid"></div>
   </section>
@@ -122,6 +125,12 @@
     <h3 class="modal-title" id="mTitle">新建项目</h3>
 
     <div class="field">
+      <label class="field-label">项目类型</label>
+      <div class="chip-row" id="fKindRow"></div>
+      <div class="field-hint" id="fKindHint"></div>
+    </div>
+
+    <div class="field">
       <label class="field-label">项目名称</label>
       <input class="input" type="text" id="fName" />
     </div>
@@ -142,13 +151,19 @@
 
     <div class="field-row">
       <div class="field">
-        <label class="field-label">端口</label>
+        <label class="field-label" id="fPortLabel">端口</label>
         <input class="input" type="number" id="fPort" placeholder="1420" />
       </div>
       <div class="field">
         <label class="field-label">Node 版本（可选）</label>
         <input class="input" type="text" id="fNode" placeholder="18.16.0" />
       </div>
+    </div>
+
+    <!-- 只有 Mac 项目需要：打包成 .dmg 的命令 -->
+    <div class="field" id="fBuildWrap">
+      <label class="field-label">打包命令（生成 .dmg）</label>
+      <input class="input" type="text" id="fBuild" placeholder="npm run tauri build" />
     </div>
 
     <div class="modal-foot">
@@ -231,6 +246,22 @@
     <div class="modal-foot">
       <button class="btn is-ghost" id="delCancel" data-act="delete-close">取消</button>
       <button class="btn is-danger" id="delBtn" data-act="delete-confirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== 打包 DMG（Mac 项目） ============================== -->
+<div class="overlay" id="buildModal">
+  <div class="modal is-wide">
+    <h3 class="modal-title">打包 DMG · <span id="bdName"></span></h3>
+    <div class="build-status" id="bdStatus"></div>
+    <pre class="build-log" id="bdLog"></pre>
+    <div class="pub-tip">打包由项目自己的命令驱动（默认 <b>npm run tauri build</b>），产物落在
+      <b>src-tauri/target/release/bundle/dmg/</b>。关掉这个窗口不会中断打包。</div>
+    <div class="modal-foot">
+      <button class="btn is-ghost" id="bdReveal" data-act="build-reveal">在访达中显示</button>
+      <button class="btn is-ghost" id="bdCancel" data-act="build-cancel">终止打包</button>
+      <button class="btn" data-act="build-close">关闭</button>
     </div>
   </div>
 </div>

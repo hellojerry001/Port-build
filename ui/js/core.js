@@ -14,6 +14,7 @@
 /* ------------------------------ 共享状态 ------------------------------ */
 let projects = [];            // 项目列表
 let busyPorts = new Map();    // port -> 端口占用信息
+let runningIds = new Set();   // 由本应用拉起、且进程组仍存活的项目 id
 let editingId = "";           // 手动添加/编辑弹窗当前编辑的项目 id
 
 let scaffolds = [];           // 模板列表

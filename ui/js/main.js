@@ -12,7 +12,10 @@ on("refresh-all", () => refreshAll());
 
 /* 删除确认是唯一的模态操作，Esc 关闭时保持与点击「取消」一致 */
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && modalOpen("delModal")) closeDelete();
+  if (e.key !== "Escape") return;
+  if (modalOpen("delModal")) closeDelete();
+  // 打包窗口 Esc 只关窗口，不中断打包（进程由后端持有）
+  if (modalOpen("buildModal")) closeBuild();
 });
 
 /* ------------------------------ 启动 ------------------------------ */

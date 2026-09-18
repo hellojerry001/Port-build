@@ -68,7 +68,8 @@ fn shell_quote(s: &str) -> String {
 }
 
 /// 剥掉 ANSI 转义序列（wrangler 输出带颜色，原样展示会变成 [41;31m 这种乱码）
-fn strip_ansi(s: &str) -> String {
+/// build.rs 的打包日志同样需要，所以提到 crate 内可见
+pub(crate) fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {

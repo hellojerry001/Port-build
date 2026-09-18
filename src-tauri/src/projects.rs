@@ -11,7 +11,19 @@ use crate::scaffolds::expand_tilde;
 
 pub type ProcTable = Mutex<HashMap<String, u32>>;
 
+/// 两类项目：
+///   web —— 起 HTTP 服务、用浏览器预览、可发布到线上
+///   mac —— Tauri 桌面应用，起的是原生窗口，产物是 .dmg
+pub const KIND_WEB: &str = "web";
+pub const KIND_MAC: &str = "mac";
+
+/// Mac 项目的默认打包命令（build_command 为空时用它）
+pub const MAC_BUILD_CMD: &str = "npm run tauri build";
+
+/// 字段在 JSON 里一律 camelCase（前端直接按 JS 习惯取）；
+/// `node_version` 是改名前的写盘格式，用 alias 兼容已有的 projects.json。
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: String,
     pub name: String,
@@ -22,8 +34,43 @@ pub struct Project {
     #[serde(default)]
     pub scaffold: String,
     /// 该项目需要的 Node 版本，如 "18.16.0"；为空则沿用登录 shell 默认
-    #[serde(default)]
+    #[serde(default, alias = "node_version")]
     pub node_version: String,
+    /// 项目类型：web / mac。为空时按目录特征推断（见 resolve_kind）
+    #[serde(default)]
+    pub kind: String,
+    /// 打包命令（仅 Mac 项目用）；为空时回退 MAC_BUILD_CMD
+    #[serde(default)]
+    pub build_command: String,
+}
+
+/// Mac 项目 = Tauri 桌面应用：`src-tauri/tauri.conf.json` 就是它的身份证
+pub fn looks_like_mac(path: &str) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+    Path::new(path)
+        .join("src-tauri")
+        .join("tauri.conf.json")
+        .is_file()
+}
+
+/// 已显式指定就尊重指定值；没指定才按目录特征推断。
+/// 结果回填进 `kind`，所以前端拿到的永远是 web / mac 二选一，不必自己判空。
+fn resolve_kind(p: &mut Project) {
+    match p.kind.as_str() {
+        KIND_WEB | KIND_MAC => {}
+        _ => p.kind = if looks_like_mac(&p.path) { KIND_MAC } else { KIND_WEB }.to_string(),
+    }
+}
+
+/// 打包命令：没单独配就用默认的
+pub fn build_command_of(p: &Project) -> String {
+    if p.build_command.trim().is_empty() {
+        MAC_BUILD_CMD.to_string()
+    } else {
+        p.build_command.trim().to_string()
+    }
 }
 
 /// 删除项目的结果：最新列表 + 给用户看的结果文案 + 废纸篓里的新路径
@@ -46,10 +93,12 @@ pub fn data_dir() -> PathBuf {
 }
 
 pub fn load() -> Vec<Project> {
-    fs::read_to_string(data_dir().join("projects.json"))
+    let mut list: Vec<Project> = fs::read_to_string(data_dir().join("projects.json"))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    list.iter_mut().for_each(resolve_kind);
+    list
 }
 
 pub fn save(list: &[Project]) -> Result<(), String> {
@@ -105,13 +154,93 @@ pub fn node_bin_dir(version: &str) -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_dir())
 }
 
-/// 把启动命令包一层：指定了 Node 版本就把它前置到 PATH。
+/// 把任意命令包一层：指定了 Node 版本就把它前置到 PATH。
 /// 比 `fnm exec` 更快更确定 —— 不依赖 fnm 本体在 PATH 上，也省掉 fnm 的启动开销。
-pub fn wrap_command(p: &Project) -> String {
+/// 打包命令走的是同一条路，否则 Mac 项目会在系统默认 Node 上编译，版本不对直接失败。
+pub fn wrap_cmd(p: &Project, command: &str) -> String {
     match node_bin_dir(&p.node_version) {
-        Some(dir) => format!("export PATH=\"{}:$PATH\"; {}", dir.display(), p.command),
-        None => p.command.clone(),
+        Some(dir) => format!("export PATH=\"{}:$PATH\"; {}", dir.display(), command),
+        None => command.to_string(),
     }
+}
+
+/// 项目启动命令（走 PATH 包装）
+pub fn wrap_command(p: &Project) -> String {
+    wrap_cmd(p, &p.command)
+}
+
+/* ------------------------- 进程表持久化 ------------------------- */
+
+/// 进程表要落盘。否则应用一重启，「哪些项目在跑」就全忘了 ——
+/// Web 项目还能靠端口监听猜出来，Mac 项目起的是原生窗口、不监听端口，
+/// 会被误判成没在跑，用户再点一次「开发预览」就叠了第二个实例。
+fn running_file() -> PathBuf {
+    data_dir().join("running.json")
+}
+
+fn save_running(table: &HashMap<String, u32>) {
+    let json = serde_json::to_string(table).unwrap_or_else(|_| "{}".into());
+    let _ = fs::write(running_file(), json);
+}
+
+/// 启动时恢复进程表。死掉的 pid 不在这里剔除——统一交给 list_running 用 `kill -0` 判活。
+pub fn load_running() -> HashMap<String, u32> {
+    fs::read_to_string(running_file())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn procs_insert(table: &ProcTable, id: &str, pid: u32) {
+    let mut t = table.lock().unwrap();
+    t.insert(id.to_string(), pid);
+    save_running(&t);
+}
+
+pub(crate) fn procs_remove(table: &ProcTable, id: &str) -> Option<u32> {
+    let mut t = table.lock().unwrap();
+    let v = t.remove(id);
+    save_running(&t);
+    v
+}
+
+/// 进程组还在不在（`kill -0` 只探测不发送信号，进程不存在时返回非 0）
+pub(crate) fn alive(pid: u32) -> bool {
+    Command::new("kill")
+        .arg("-0")
+        .arg(pid.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// 起后台进程的标准姿势：独立进程组 + 输出落盘 + 脱离 Child 的 RAII。
+/// 独立进程组是关键：`tauri dev` / `npm run dev` 会拉起子进程，
+/// 只有杀整组才能收干净；脱离 RAII 是为了应用退出时不连带杀掉用户的项目。
+pub(crate) fn spawn_grouped(cwd: &str, script: &str, log: &fs::File) -> Result<u32, String> {
+    let child = Command::new("zsh")
+        .arg("-lc")
+        .arg(script)
+        .current_dir(cwd)
+        .stdout(Stdio::from(
+            log.try_clone().map_err(|e| e.to_string())?,
+        ))
+        .stderr(Stdio::from(
+            log.try_clone().map_err(|e| e.to_string())?,
+        ))
+        .process_group(0)
+        .spawn()
+        .map_err(|e| format!("启动失败: {e}"))?;
+    let pid = child.id();
+    std::mem::forget(child);
+    Ok(pid)
+}
+
+/// 打开日志文件（覆盖写）。日志目录在 data_dir() 里已建好。
+pub fn open_log(name: &str) -> Result<fs::File, String> {
+    fs::File::create(data_dir().join("logs").join(name)).map_err(|e| e.to_string())
 }
 
 /* ------------------------- 删除项目（含磁盘文件） ------------------------- */
@@ -252,7 +381,7 @@ pub fn move_to_trash(src: &Path) -> Result<PathBuf, String> {
 }
 
 /// 终止整个进程组（先 TERM 再 KILL）
-fn kill_group(pid: u32) {
+pub(crate) fn kill_group(pid: u32) {
     let _ = Command::new("kill")
         .args(["-TERM", &format!("-{pid}")])
         .status();
@@ -274,8 +403,7 @@ pub fn delete_impl(id: &str, want_files: bool, procs: &ProcTable) -> Result<Dele
         // 先校验（不通过就直接报错，配置不动）
         let dir = resolve_deletable(&p.path)?;
         // 还在跑就先停掉，否则服务持续写文件、删不干净
-        let running = procs.lock().unwrap().remove(id);
-        if let Some(pid) = running {
+        if let Some(pid) = procs_remove(procs, id) {
             kill_group(pid);
         }
         let dest = move_to_trash(&dir)?;
@@ -322,23 +450,26 @@ pub fn delete_project(
 #[tauri::command]
 pub fn start_project(id: String, state: tauri::State<'_, ProcTable>) -> Result<u32, String> {
     let p = find(&id).ok_or_else(|| "项目不存在".to_string())?;
-    let log = fs::File::create(data_dir().join("logs").join(format!("{id}.log")))
-        .map_err(|e| e.to_string())?;
-    let child = Command::new("zsh")
-        .arg("-lc")
-        .arg(wrap_command(&p))
-        .current_dir(&p.path)
-        .stdout(Stdio::from(
-            log.try_clone().map_err(|e| e.to_string())?,
-        ))
-        .stderr(Stdio::from(log))
-        .process_group(0)
-        .spawn()
-        .map_err(|e| format!("启动失败: {e}"))?;
-    let pid = child.id();
-    state.lock().unwrap().insert(id.clone(), pid);
-    std::mem::forget(child); // 交由 OS 托管，应用退出不连带杀进程
+    let log = open_log(&format!("{id}.log"))?;
+    let pid = spawn_grouped(&p.path, &wrap_command(&p), &log)?;
+    procs_insert(state.inner(), &id, pid);
     Ok(pid)
+}
+
+/// 本机还活着的、由端口管家启动的进程对应哪些项目 id。
+///
+/// 为什么需要它：Web 项目可以靠「端口有没有在监听」判断在不在跑，
+/// 但 Mac 项目起的是原生窗口、未必监听端口 —— 只能认我们自己拉起来的进程组。
+/// 顺带也让 Web 项目在启动后立刻亮起状态点，不必等端口真正打开。
+#[tauri::command]
+pub fn list_running(state: tauri::State<'_, ProcTable>) -> Vec<String> {
+    let mut table = state.lock().unwrap();
+    let before = table.len();
+    table.retain(|_, pid| alive(*pid)); // 顺手清掉已退出的，别让 running.json 越积越长
+    if table.len() != before {
+        save_running(&table);
+    }
+    table.keys().cloned().collect()
 }
 
 #[tauri::command]
@@ -350,7 +481,7 @@ pub fn stop_project(id: String, state: tauri::State<'_, ProcTable>) -> Result<St
         .copied()
         .ok_or("该进程不是端口管家启动的，请用端口雷达处理")?;
     kill_group(pid);
-    state.lock().unwrap().remove(&id);
+    procs_remove(state.inner(), &id);
     Ok(format!("已停止进程组 {pid}"))
 }
 
@@ -422,6 +553,100 @@ mod tests {
         let _ = fs::remove_dir_all(&target);
     }
 
+    /// 加 kind / buildCommand 时字段改成了 camelCase 写盘。
+    /// 老用户的 projects.json 是 snake_case 的 node_version —— 必须还能读进来，
+    /// 否则一次升级就会把所有人的 Node 版本配置清空。
+    #[test]
+    fn legacy_snake_case_json_still_loads() {
+        let legacy = r#"[{"id":"p1","name":"旧项目","path":"/tmp","command":"npm run dev",
+            "port":5173,"scaffold":"pc","node_version":"18.16.0"}]"#;
+        let list: Vec<Project> = serde_json::from_str(legacy).unwrap();
+        assert_eq!(list[0].node_version, "18.16.0", "旧字段名应被 alias 接住");
+
+        // 新格式：camelCase 写出，且能被自己读回
+        let mut p = list[0].clone();
+        resolve_kind(&mut p);
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(json.contains("\"nodeVersion\""), "应写 camelCase: {json}");
+        assert!(json.contains("\"buildCommand\""));
+        let back: Project = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.node_version, "18.16.0");
+        assert_eq!(back.kind, "web");
+    }
+
+    /// 空 kind 的项目按目录特征推断：有 src-tauri/tauri.conf.json 就是 Mac 项目
+    #[test]
+    fn kind_is_inferred_from_tauri_layout() {
+        let mac = tmp_dir("mac-app");
+        fs::create_dir_all(mac.join("src-tauri")).unwrap();
+        fs::write(mac.join("src-tauri/tauri.conf.json"), "{}").unwrap();
+        let web = tmp_dir("web-app");
+
+        let mk = |path: &Path, kind: &str| Project {
+            id: "x".into(),
+            name: "x".into(),
+            path: path.to_string_lossy().to_string(),
+            command: "true".into(),
+            port: 0,
+            scaffold: String::new(),
+            node_version: String::new(),
+            kind: kind.to_string(),
+            build_command: String::new(),
+        };
+
+        // 空值 → 按目录判定
+        let mut a = mk(&mac, "");
+        resolve_kind(&mut a);
+        assert_eq!(a.kind, KIND_MAC);
+        let mut b = mk(&web, "");
+        resolve_kind(&mut b);
+        assert_eq!(b.kind, KIND_WEB);
+
+        // 显式指定 → 不覆盖用户的选择（Tauri 项目也能被当 Web 管）
+        let mut c = mk(&mac, KIND_WEB);
+        resolve_kind(&mut c);
+        assert_eq!(c.kind, KIND_WEB, "显式值优先级高于推断");
+
+        let _ = fs::remove_dir_all(&mac);
+        let _ = fs::remove_dir_all(&web);
+    }
+
+    #[test]
+    fn build_command_falls_back_to_default() {
+        let mut p = Project {
+            id: "x".into(),
+            name: "x".into(),
+            path: "/tmp".into(),
+            command: "npm run tauri dev".into(),
+            port: 0,
+            scaffold: String::new(),
+            node_version: String::new(),
+            kind: KIND_MAC.to_string(),
+            build_command: String::new(),
+        };
+        assert_eq!(build_command_of(&p), MAC_BUILD_CMD);
+        p.build_command = "  pnpm tauri build  ".into();
+        assert_eq!(build_command_of(&p), "pnpm tauri build", "应去掉首尾空白");
+    }
+
+    /// Node 版本要同时作用于启动与打包 —— 否则打包会在系统默认 Node 上编译
+    #[test]
+    fn wrap_cmd_prefixes_node_bin() {
+        let p = Project {
+            id: "x".into(),
+            name: "x".into(),
+            path: "/tmp".into(),
+            command: "npm run dev".into(),
+            port: 0,
+            scaffold: String::new(),
+            node_version: String::new(),
+            kind: KIND_WEB.to_string(),
+            build_command: String::new(),
+        };
+        // 没指定版本时原样透传
+        assert_eq!(wrap_cmd(&p, "npm run tauri build"), "npm run tauri build");
+    }
+
     #[test]
     fn unique_dest_avoids_collision() {
         let trash = tmp_dir("trash");
@@ -469,6 +694,8 @@ mod tests {
             port: 9,
             scaffold: String::new(),
             node_version: String::new(),
+            kind: KIND_WEB.to_string(),
+            build_command: String::new(),
         })
         .unwrap();
         id

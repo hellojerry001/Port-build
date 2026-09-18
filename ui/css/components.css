@@ -153,6 +153,90 @@
 
 .theme-opt.is-on .tick { opacity: 1; }
 
+/* ============================== 分类页签 ============================== */
+/* 项目页顶部的「Web / Mac」切换。选中态复用 rail 的指示条语言：底部短横线 */
+.tabs {
+  display: flex;
+  gap: var(--px-2);
+  margin-bottom: var(--gap-row);
+  border-bottom: var(--hairline) solid var(--c-border);
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--px-6);
+  border: none;
+  background: transparent;
+  color: var(--c-text-3);
+  font-family: inherit;
+  font-size: var(--fs-13);
+  padding: var(--px-6) var(--px-12) var(--px-9);
+  border-radius: var(--r-7) var(--r-7) 0 0;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.tab:hover { background: var(--c-surface-2); color: var(--c-text-2); }
+.tab.is-on { color: var(--c-text); font-weight: var(--fw-semi); }
+
+.tab.is-on::after {
+  content: "";
+  position: absolute;
+  left: var(--px-12);
+  right: var(--px-12);
+  bottom: calc(var(--px-1) * -1);
+  height: var(--px-2);
+  border-radius: var(--r-2);
+  background: var(--c-indicator);
+}
+
+/* 页签上的数量角标 */
+.tab-count {
+  font-size: var(--fs-10);
+  color: var(--c-text-3);
+  background: var(--c-surface-3);
+  border-radius: var(--r-pill);
+  padding: 0 var(--px-5);
+  min-width: var(--px-18);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab.is-on .tab-count { background: var(--c-surface-6); color: var(--c-text); }
+
+/* ============================== 打包日志 ============================== */
+/* 状态行要托得住转圈，且比正文提示更醒目一点 */
+.build-status {
+  display: flex;
+  align-items: center;
+  min-height: var(--px-17);
+  margin-bottom: var(--px-8);
+  color: var(--c-text-2);
+  font-size: var(--fs-12);
+}
+
+.build-status.is-ok  { color: var(--c-ok-strong); }
+.build-status.is-bad { color: var(--c-danger); }
+
+/* 等宽 + 可选中：cargo 的输出要能复制出去排查 */
+.build-log {
+  height: var(--build-log-h);
+  overflow: auto;
+  background: var(--c-surface-1);
+  border: var(--hairline) solid var(--c-border);
+  border-radius: var(--r-10);
+  padding: var(--px-10) var(--px-12);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-11);
+  line-height: var(--lh-16);
+  color: var(--c-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
 /* ============================== 工具条 ============================== */
 /* 页面顶部按钮行。默认右对齐（沿用既有版式），左侧内容用 .toolbar-lead 顶开 */
 .toolbar {

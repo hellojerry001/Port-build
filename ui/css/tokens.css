@@ -207,6 +207,7 @@
   --modal-w-wide:    560px;
   --modal-w-publish: 470px;
   --list-max-h:      390px;
+  --build-log-h:     240px;   /* 打包日志可视高度 */
   --grid-min:        320px;   /* 项目卡片 */
   --grid-min-page:   340px;   /* 发布记录页两列起 */
   --hairline:        var(--px-1);
