@@ -17,7 +17,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::projects::{self, ProcTable, Project};
 
 /// 项目 id → 打包进程 pid。只用一张表：同一项目同时只允许一个打包进程
-pub type BuildTable = Mutex<HashMap<String, u32>>;
+///
+/// ⚠️ 必须是 **newtype 结构体**，不能写成
+/// `pub type BuildTable = Mutex<HashMap<String, u32>>`：
+/// Tauri 的 `.manage()` 按 `TypeId` 去重，类型别名不产生新类型，
+/// 于是它和 `projects::ProcTable` 撞成同一个 TypeId，启动即 panic
+/// 「state for type 'Mutex<HashMap<String, u32>>' is already being managed」。
+/// 这个坑编译期看不出来，只有真机跑起来才炸。
+#[derive(Default)]
+pub struct BuildTable(pub Mutex<HashMap<String, u32>>);
 
 /// 回给前端的日志行数。多了没意义（cargo 输出极长），少了看不出进度
 const TAIL_LINES: usize = 30;
@@ -113,7 +121,7 @@ pub fn build_dmg(
 ) -> Result<u32, String> {
     let p: Project = projects::find(&id).ok_or("项目不存在")?;
     {
-        let table = builds.lock().unwrap();
+        let table = builds.inner().0.lock().unwrap();
         if let Some(pid) = table.get(&id) {
             if projects::alive(*pid) {
                 return Err("这个项目正在打包中".into());
@@ -127,7 +135,7 @@ pub fn build_dmg(
     let log = projects::open_log(&format!("{id}.build.log"))?;
 
     let pid = projects::spawn_grouped(&p.path, &script, &log)?;
-    builds.lock().unwrap().insert(id, pid);
+    builds.inner().0.lock().unwrap().insert(id, pid);
     Ok(pid)
 }
 
@@ -135,6 +143,8 @@ pub fn build_dmg(
 pub fn build_status(id: String, builds: tauri::State<'_, BuildTable>) -> Result<BuildStatus, String> {
     let p = projects::find(&id).ok_or("项目不存在")?;
     let running = builds
+        .inner()
+        .0
         .lock()
         .unwrap()
         .get(&id)
@@ -158,13 +168,15 @@ pub fn build_status(id: String, builds: tauri::State<'_, BuildTable>) -> Result<
 #[tauri::command]
 pub fn cancel_build(id: String, builds: tauri::State<'_, BuildTable>) -> Result<String, String> {
     let pid = builds
+        .inner()
+        .0
         .lock()
         .unwrap()
         .get(&id)
         .copied()
         .ok_or("这个项目没有在打包")?;
     projects::kill_group(pid);
-    builds.lock().unwrap().remove(&id);
+    builds.inner().0.lock().unwrap().remove(&id);
     Ok(format!("已终止打包进程组 {pid}"))
 }
 
@@ -204,6 +216,14 @@ mod tests {
         let got = find_dmg(&root).expect("应找到 dmg");
         assert_eq!(got.file_name().unwrap(), "app-new.dmg");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 守护 newtype：一旦有人图省事把 BuildTable 改回 `type X = Mutex<HashMap<..>>`，
+    /// TypeId 就会和 ProcTable 撞车，Tauri 启动即 panic。编译期看不出来，只能靠这条断言拦。
+    #[test]
+    fn build_table_is_a_distinct_type_from_proc_table() {
+        use std::any::TypeId;
+        assert_ne!(TypeId::of::<BuildTable>(), TypeId::of::<ProcTable>());
     }
 
     #[test]

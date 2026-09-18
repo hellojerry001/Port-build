@@ -9,7 +9,6 @@ mod scaffolds;
 
 use build::BuildTable;
 use projects::ProcTable;
-use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{
     image::Image,
@@ -42,7 +41,7 @@ pub fn run() {
     tauri::Builder::default()
         // 进程表从磁盘恢复：应用重启后仍认得上一次拉起来的项目
         .manage(Mutex::new(projects::load_running()) as ProcTable)
-        .manage(Mutex::new(HashMap::<String, u32>::new()) as BuildTable)
+        .manage(BuildTable::default())
         .invoke_handler(tauri::generate_handler![
             ports::list_ports,
             ports::kill_port,
