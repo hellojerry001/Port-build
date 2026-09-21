@@ -330,6 +330,150 @@ pub fn git_repo_states() -> Vec<RepoState> {
     projects::load().iter().map(repo_state).collect()
 }
 
+/* ============================== 提交与推送（阶段二） ============================== */
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedFile {
+    /// 相对仓库根的文件路径
+    pub path: String,
+    /// 单字母 git 状态：M / A / D / R / ?? 等
+    pub status: String,
+    /// 中文友好标签：修改 / 新增 / 删除 / 未跟踪 / 重命名
+    pub label: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PushOutcome {
+    pub ok: bool,
+    /// 一句话结论，如「已提交并推送（8 个改动）」「已推送」
+    pub headline: String,
+    /// git 的真实输出（stdout / stderr 合并），前端等宽展示
+    pub detail: String,
+}
+
+/// 跑一条 git 命令，成功返回 stdout+stderr（合并），失败返回 Err（含 stderr）。
+///
+/// 与 `git_out` 的区别：这里要的是「推送 / 提交」这种**会失败且必须把原因告诉用户**
+/// 的动作 —— 鉴权失败、远端领先要先 pull、冲突，都不能吞。
+fn git_run(dir: Option<&str>, args: &[&str]) -> Result<String, String> {
+    let mut c = Command::new(git_bin());
+    if let Some(d) = dir { c.current_dir(d); }
+    let out = c.args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_ASKPASS", "echo")
+        .output()
+        .map_err(|e| format!("调用 git 失败：{e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        let msg = if !stderr.trim().is_empty() { stderr.trim().to_string() }
+                  else { stdout.trim().to_string() };
+        return Err(msg);
+    }
+    let mut s = stdout.trim().to_string();
+    if !stderr.trim().is_empty() {
+        if !s.is_empty() { s.push('\n'); }
+        s.push_str(stderr.trim());
+    }
+    Ok(s)
+}
+
+/// 把 porcelain 的状态双字母映射成中文标签。
+fn classify(x: char, y: char) -> (&'static str, &'static str) {
+    match (x, y) {
+        ('?', '?')          => ("??", "未跟踪"),
+        ('U', _) | (_, 'U') => ("U",  "冲突"),
+        ('A', _) | (_, 'A') => ("A",  "新增"),
+        ('D', _) | (_, 'D') => ("D",  "删除"),
+        ('R', _) | (_, 'R') => ("R",  "重命名"),
+        ('C', _) | (_, 'C') => ("C",  "复制"),
+        ('M', _) | (_, 'M') => ("M",  "修改"),
+        _                    => ("?",  "改动"),
+    }
+}
+
+#[tauri::command]
+pub fn git_changed_files(path: String) -> Result<Vec<ChangedFile>, String> {
+    if !Path::new(&path).join(".git").exists() {
+        return Err("还不是 git 仓库".into());
+    }
+    let out = git_out(Some(&path), &["status", "--porcelain"]).unwrap_or_default();
+    let files: Vec<ChangedFile> = out
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| {
+            let mut it = line.trim_start().chars();
+            let x = it.next().unwrap_or(' ');
+            let y = it.next().unwrap_or(' ');
+            let name: String = it.skip_while(|c| c.is_whitespace()).collect();
+            let (status, label) = classify(x, y);
+            ChangedFile { path: name, status: status.into(), label: label.into() }
+        })
+        .collect();
+    Ok(files)
+}
+
+/// 取出 origin 远端地址；没有就报错（把「先 remote add」交给用户，
+/// 应用不替他建仓库，也不猜他想推到哪个地址）。
+fn origin_url(dir: &str) -> Result<String, String> {
+    git_out(Some(dir), &["remote", "get-url", "origin"])
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "没有远端仓库（origin）。先 `git remote add origin <url>` 再推送。".into())
+}
+
+#[tauri::command]
+pub fn git_push(path: String) -> Result<PushOutcome, String> {
+    if !Path::new(&path).join(".git").exists() {
+        return Err("还不是 git 仓库".into());
+    }
+    origin_url(&path)?;
+    let branch = git_out(Some(&path), &["rev-parse", "--abbrev-ref", "HEAD"])
+        .unwrap_or_default();
+    if branch.is_empty() {
+        return Err("无法确定当前分支".into());
+    }
+    let detail = git_run(Some(&path), &["push", "-u", "origin", branch.as_str()])?;
+    Ok(PushOutcome { ok: true, headline: "已推送".into(), detail })
+}
+
+#[tauri::command]
+pub fn git_commit_push(path: String, message: String) -> Result<PushOutcome, String> {
+    // message 先校验：空 / 纯空白先拒绝，不必走到远端那一步
+    let msg = message.trim();
+    if msg.is_empty() {
+        return Err("提交说明不能为空".into());
+    }
+    if msg.chars().count() > 200 {
+        return Err("提交说明太长（最多 200 字）".into());
+    }
+    if !Path::new(&path).join(".git").exists() {
+        return Err("还不是 git 仓库".into());
+    }
+    // 没有未提交改动就不 commit（否则 git 会开编辑器卡住或报 nothing to commit）
+    let dirty = git_out(Some(&path), &["status", "--porcelain"])
+        .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
+        .unwrap_or(0);
+    if dirty == 0 {
+        return Err("没有未提交的改动，无需提交".into());
+    }
+    origin_url(&path)?;
+    let branch = git_out(Some(&path), &["rev-parse", "--abbrev-ref", "HEAD"])
+        .unwrap_or_default();
+    if branch.is_empty() {
+        return Err("无法确定当前分支".into());
+    }
+    git_run(Some(&path), &["add", "-A"])
+        .map_err(|e| format!("git add 失败：{e}"))?;
+    // commit message 走参数数组，不经 shell，无注入面
+    git_run(Some(&path), &["commit", "-m", msg])
+        .map_err(|e| format!("提交失败：{e}"))?;
+    let detail = git_run(Some(&path), &["push", "-u", "origin", branch.as_str()])
+        .map_err(|e| format!("推送失败：{e}"))?;
+    Ok(PushOutcome { ok: true, headline: format!("已提交并推送（{} 个改动）", dirty), detail })
+}
+
 /* ============================== 写入 ============================== */
 
 #[tauri::command]
@@ -524,5 +668,75 @@ mod tests {
         for k in ["\"gitPath\"", "\"gitVersion\"", "\"nameSource\"", "\"hasGithubCred\"", "\"ghCli\""] {
             assert!(j.contains(k), "状态 JSON 里缺 {k}");
         }
+    }
+
+    /* ---- 阶段二：提交与推送 ---- */
+
+    #[test]
+    fn changed_files_reports_missing_repo() {
+        let r = git_changed_files("/tmp/definitely-not-a-repo-xyz".into());
+        assert!(r.is_err(), "非仓库应当报错，得到 {:?}", r);
+        assert!(r.unwrap_err().contains("还不是 git 仓库"));
+    }
+
+    #[test]
+    fn classify_maps_git_states() {
+        assert_eq!(classify('?', '?'), ("??", "未跟踪"));
+        assert_eq!(classify('A', ' '), ("A", "新增"));
+        assert_eq!(classify(' ', 'M'), ("M", "修改"));
+        assert_eq!(classify('D', ' '), ("D", "删除"));
+        assert_eq!(classify('R', ' '), ("R", "重命名"));
+        assert_eq!(classify('U', 'A'), ("U", "冲突"));
+    }
+
+    /// 造一个临时 git 仓库（含最小身份），返回路径。测试结束不清理，
+    /// 反正都在 /tmp 下，且路径带 pid 不会撞。
+    fn mk_repo() -> std::path::PathBuf {
+        // 同进程内 pid 恒定，必须用唯一后缀隔离：并行测试会同时调 mk_repo，
+        // 共用路径会互相 remove_dir_all / init 导致 race 失败。纳秒戳足够区分。
+        let n = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("pb_git_t_{}", n));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let d = dir.to_string_lossy().to_string();
+        let ini = git_out(Some(&d), &["init"]);
+        assert!(ini.is_some(), "git init 失败：{:?}", git_run(Some(&d), &["init"]));
+        let _ = git_run(Some(&d), &["config", "user.name", "pb-test"]);
+        let _ = git_run(Some(&d), &["config", "user.email", "pb@test.local"]);
+        dir
+    }
+
+    #[test]
+    fn changed_files_parses_porcelain() {
+        let dir = mk_repo();
+        let d = dir.to_string_lossy().to_string();
+        fs::write(dir.join("hello.txt"), b"hi").unwrap();
+        fs::write(dir.join("nested.log"), b"x").unwrap();
+        let _ = git_run(Some(&d), &["add", "-A"]);
+        let files = git_changed_files(d.clone()).unwrap();
+        assert!(files.iter().any(|f| f.path == "hello.txt" && f.status == "A"));
+        assert!(files.iter().any(|f| f.path == "nested.log" && f.label == "新增"));
+    }
+
+    #[test]
+    fn commit_push_rejects_empty_message() {
+        let dir = mk_repo();
+        let d = dir.to_string_lossy().to_string();
+        fs::write(dir.join("f.txt"), b"x").unwrap();
+        // 空 message：应当在远端校验之前就被拦下
+        let e = git_commit_push(d.clone(), "   ".into()).unwrap_err();
+        assert!(e.contains("提交说明不能为空"), "{e}");
+    }
+
+    #[test]
+    fn commit_push_rejects_when_nothing_to_commit() {
+        let dir = mk_repo();
+        let d = dir.to_string_lossy().to_string();
+        // 有仓库但没改动：应当报「没有未提交的改动」，而不是去碰远端
+        let e = git_commit_push(d.clone(), "feat: x".into()).unwrap_err();
+        assert!(e.contains("没有未提交的改动"), "{e}");
     }
 }

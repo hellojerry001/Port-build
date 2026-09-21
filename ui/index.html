@@ -470,6 +470,22 @@
   </div>
 </div>
 
+<!-- ============================== 提交并推送 GitHub ============================== -->
+<div class="overlay" id="gitPushModal">
+  <div class="modal">
+    <h3 class="modal-title">提交并推送 · <span id="gpName"></span></h3>
+
+    <div id="gpHead"></div>
+    <div id="gpBody"></div>
+
+    <!-- 推送结果（成功 / 失败都在这）：一句话结论 + git 真实输出 -->
+    <div class="gp-status" id="gpStatus" hidden></div>
+    <pre class="gp-detail" id="gpDetail" hidden></pre>
+
+    <div class="modal-foot" id="gpFoot"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- 主题切换浮层（内容由 rail.js 渲染） -->
@@ -486,6 +502,7 @@
 <script src="js/publish.js"></script>
 <script src="js/about.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/push.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

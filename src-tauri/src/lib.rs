@@ -84,6 +84,9 @@ pub fn run() {
             update::cancel_download,
             git::git_status,
             git::git_repo_states,
+            git::git_changed_files,
+            git::git_push,
+            git::git_commit_push,
             git::save_git_settings,
             git::apply_git_identity,
             git::token_help_url

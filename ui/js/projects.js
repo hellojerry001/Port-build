@@ -21,6 +21,10 @@ const kindOf = p => (p.kind === "mac" ? "mac" : "web");
 /* Mac 项目当前图标的 base64 缩略图缓存（key = 项目 id） */
 let macIcons = new Map();
 
+/* 各项目的 git 仓库状态（id -> RepoState），来自 git_repo_states。
+   卡片上的提交/推送标记从这里取；地图为空表示还没拉回来（卡片先渲染，后补标记）。 */
+let repoStates = new Map();
+
 /* 拉一遍 Mac 项目的图标，填进 macIcons 后重渲染卡片 */
 async function loadMacIcons() {
   const macs = projects.filter(p => kindOf(p) === "mac");
@@ -49,6 +53,7 @@ async function refreshAll() {
   renderProjects();
   renderRadar();
   loadMacIcons();
+  loadRepoStates();   // 异步回填卡片 git 标记（不阻塞首屏）
 }
 
 /* Web 项目靠端口监听判断，Mac 项目只能认自己拉起来的进程组 —— 两条都算 */
@@ -116,8 +121,9 @@ function renderProjects() {
           '<span class="card-name">' + esc(p.name) + "</span>" +
           (mac ? '<span class="tag">' + dot + "Mac</span>" : "") +
           (p.scaffold ? '<span class="tag">' + esc(p.scaffold) + "</span>" : "") +
-          (p.port ? '<span class="port-chip">:' + esc(p.port) + "</span>" : "") +
-        "</div>" +
+      (p.port ? '<span class="port-chip">:' + esc(p.port) + "</span>" : "") +
+      gitBadge(p) +
+    "</div>" +
         '<div class="card-meta" title="' + esc(p.path) + '">' +
           esc(p.path) + " · " + esc(p.command) +
         "</div>" +
@@ -132,6 +138,43 @@ on("proj-tab", el => {
   renderTabs();
   renderProjects();
 });
+
+/* ============================== 卡片上的 git 标记 + 仓库状态 ==============================
+   repoStates（见文件顶部 Map）由 loadRepoStates() 异步填满，卡片渲染时从这里取。
+   地图为空表示还没拉回来：卡片先正常渲染（gitBadge 退化为空串），拉回后再重渲染补标记。
+   标记规则（与设置页仓库表一致）：
+     - dirty>0               → 显示「未提交 N」（warn 色，阻断态：必须先提交）
+     - dirty=0 && unpushed>0  → 显示「未推送 N」（普通色）
+     - 非仓库 / 全干净        → 不显示任何标记 */
+function gitBadge(p) {
+  const r = repoStates.get(p.id);
+  if (!r || !r.isRepo) return "";
+  if (r.dirty > 0) {
+    return '<button class="git-badge is-warn" data-act="git-push-open" data-id="' +
+      esc(p.id) + '" title="有 ' + r.dirty + ' 个未提交的改动，先提交再推送">未提交 ' + r.dirty +
+      "</button>";
+  }
+  if (r.unpushed > 0) {
+    return '<button class="git-badge" data-act="git-push-open" data-id="' +
+      esc(p.id) + '" title="有 ' + r.unpushed + ' 个提交还没推到远端">未推送 ' + r.unpushed +
+      "</button>";
+  }
+  return "";
+}
+
+/* 列表渲染后异步拉仓库状态，回填卡片上的 git 标记（不阻塞首屏）。
+   失败不报错、不动地图：标记只是锦上添花，绝不能因为读不到仓库状态把卡片搞没了。 */
+async function loadRepoStates() {
+  let states;
+  try {
+    states = await invoke("git_repo_states");
+  } catch (_) {
+    return;
+  }
+  if (!Array.isArray(states)) return;
+  repoStates = new Map(states.map(s => [s.id, s]));
+  renderProjects();   // 仅重渲染卡片（含标记），不动其它模块
+}
 
 /* ============================== 启动 / 停止 / 打开 ============================== */
 on("op", async el => {
