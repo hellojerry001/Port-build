@@ -919,11 +919,16 @@
 
 .about-row.is-link { cursor: pointer; }
 
+/* 跳转箭头。与 rail 那套 stroke 图标不同，它是**填充型**（一条闭合 path，
+   形状本身就是箭头轮廓），所以必须显式给 fill —— SVG 的默认 fill 是不透明黑，
+   不给的话 color 完全不起作用，连 hover 变色也会一起失效。 */
 .about-arrow {
   width: var(--icon);
   height: var(--icon);
   flex: none;
   color: var(--c-text-3);
+  fill: currentColor;
+  stroke: none;
   transition: color var(--dur-fast) var(--ease);
 }
 
