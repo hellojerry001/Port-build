@@ -1026,6 +1026,13 @@
   outline-offset: var(--px-2);
 }
 
+/* 保存 / 写全局配置进行中时开关不可点：给个明确的「不可用」观感，
+   否则点下去没反应会像卡住 */
+.switch[disabled] {
+  opacity: .5;
+  cursor: default;
+}
+
 /* 侧栏「关于」上的提示圆点：检测到新版本才由 about.js 加上。
    底色取 --c-text（深色近白 / 浅色近黑），两套主题下都够醒目。 */
 /* ⚠️ 必须用 ::before：`.rail-btn::after` 已经被悬浮名称气泡占用
@@ -1046,3 +1053,170 @@
   box-shadow: 0 0 0 var(--px-2) var(--c-rail);
   z-index: 1;
 }
+
+/* ============================== 设置页 ============================== */
+/* 卡片外形与关于页同一套（--c-surface-1 + --r-12），行结构不同：
+   这里要放「图标 + 两行文字」的自检项与带开关的设置行，硬套 .about-row
+   反而要到处覆写，所以另起 .set-* 命名。唯一共用的是跳转箭头（见 .set-link）。 */
+
+.set-card {
+  background: var(--c-surface-1);
+  border-radius: var(--r-12);
+  padding: 0 var(--px-16);
+  margin-bottom: var(--gap-row);
+}
+
+/* 卡片无内边距，间距全由行自己给，首末行才和卡片边缘对齐 */
+.set-head {
+  display: flex;
+  align-items: center;
+  gap: var(--px-10);
+  padding: var(--px-14) 0;
+}
+
+.set-title {
+  flex: none;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semi);
+}
+
+/* 跟在标题后面的说明文字：占满剩余宽度，把右侧的 .set-aside 顶到边上 */
+.set-note {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+}
+
+/* 标题右侧的一组：状态 + 按钮。标题下没有 .set-note 时靠 auto 顶到右边 */
+.set-aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--px-10);
+  margin-left: auto;
+}
+
+.set-ready {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+}
+
+.set-ready.is-ok  { color: var(--c-ok); }
+.set-ready.is-bad { color: var(--c-warn-strong); }
+
+/* -------- 环境自检 -------- */
+
+.set-checks { padding-bottom: var(--px-6); }
+
+.set-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--px-10);
+  padding: var(--px-8) 0;
+}
+
+/* 图标盒：宽高给足，svg 铺满。描边属性统一写在这里，与 .rail-btn svg 同源 */
+.set-mark {
+  flex: none;
+  width: var(--menu-icon);
+  height: var(--menu-icon);
+  margin-top: var(--px-2);
+  color: var(--c-text-3);
+}
+
+.set-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.set-mark.is-ok  { color: var(--c-ok); }
+.set-mark.is-bad { color: var(--c-danger); }
+
+/* -------- 设置卡片的行 -------- */
+
+.set-body { padding-bottom: var(--px-14); }
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: var(--px-12);
+  padding: var(--px-10) 0;
+}
+
+.set-main { flex: 1; min-width: 0; }
+
+.set-row-label { font-size: var(--fs-12); }
+
+.set-row-note {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  margin-top: var(--px-2);
+  line-height: var(--lh-15);
+}
+
+/* 自检项 / 设置行的说明文字报错时用同一个红（.field-hint.is-bad 已有同款规则） */
+.set-row-note.is-bad { color: var(--c-danger); }
+
+.set-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-inline);
+  padding: 0 0 var(--px-14);
+}
+
+/* -------- 仓库状态表 -------- */
+
+.set-card .table { margin-bottom: var(--px-8); }
+
+.set-card .table th:first-child,
+.set-card .table td:first-child { padding-left: 0; }
+
+.set-card .table th:last-child,
+.set-card .table td:last-child { padding-right: 0; }
+
+/* 数字列：表头与单元格都要右对齐，只给 th 加类会两头对不上 */
+.set-card .table .col-num {
+  width: var(--px-90);
+  text-align: right;
+}
+
+/* 项目名与远端地址都可能很长：单行省略，完整值走 title 气泡 */
+.set-ellipsis {
+  display: inline-block;
+  max-width: var(--set-name-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.set-remote { color: var(--c-text-3); font-size: var(--fs-11); }
+.set-remote .set-ellipsis { max-width: var(--set-remote-w); }
+
+.set-mute { color: var(--c-text-3); }
+.set-num.is-warn { color: var(--c-warn-strong); }
+
+/* 表格里的空态由 .empty-state 自己撑高度，别再叠加单元格内边距 */
+.set-card .table td.empty-state { padding: var(--px-20) 0; }
+
+/* -------- 令牌入口 -------- */
+/* 箭头复用 .about-arrow —— 两处的跳转行视觉必须一致，
+   重复一份样式迟早会漂开。行的排版本身很短，各留一份。 */
+
+.set-link {
+  display: flex;
+  align-items: center;
+  gap: var(--px-12);
+  padding: var(--px-14) 0;
+  cursor: pointer;
+}
+
+.set-link:hover .set-row-label { color: var(--c-text); }
+.set-link:hover .about-arrow  { color: var(--c-text); }

@@ -70,10 +70,111 @@
   </section>
 
   <!-- ============================== 设置 ============================== -->
+  <!-- GitHub 同步：这一页是「项目一键提交 GitHub」的前置 ——
+       先把 git 环境与提交身份确认好，真到提交那一步就不该再让用户填任何东西 -->
   <section class="page" id="page-settings">
-    <div class="void-state">
-      <div class="void-title">设置</div>
-      <div class="void-desc">默认端口起始值、模板存放目录、主题等偏好设置。<br>这一页还在排期里。</div>
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">GitHub 同步</div>
+        <div class="set-aside">
+          <span class="set-ready" id="gsReady">检测中…</span>
+          <button class="btn is-ghost" data-act="gs-refresh">重新检测</button>
+        </div>
+      </div>
+      <div class="set-checks" id="gsChecks"></div>
+    </div>
+
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">提交身份</div>
+        <div class="set-note">提交到 GitHub 时带的名字与邮箱；留空表示沿用 git 全局配置</div>
+      </div>
+      <div class="set-body">
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="gsName">名字</label>
+            <input class="input" type="text" id="gsName" data-k="name" data-oninput="gs-field"
+                   placeholder="沿用 git 全局配置" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="gsEmail">邮箱</label>
+            <input class="input" type="text" id="gsEmail" data-k="email" data-oninput="gs-field"
+                   placeholder="沿用 git 全局配置" autocomplete="off" />
+          </div>
+        </div>
+        <div class="field-hint" id="gsHint"></div>
+      </div>
+      <div class="set-foot">
+        <button class="btn is-ghost" data-act="gs-global">写入 git 全局配置</button>
+        <button class="btn is-primary" data-act="gs-save">保存设置</button>
+      </div>
+    </div>
+
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">默认值</div>
+        <div class="set-note">将来给项目建仓库时套用的默认行为</div>
+      </div>
+      <div class="set-body">
+        <!-- 单独包一层 .field-row：.is-slim 的定宽规则只在 field-row 里生效，
+             分行等宽是那一层的职责 -->
+        <div class="field-row">
+          <div class="field is-slim">
+            <label class="field-label" for="gsBranch">默认分支</label>
+            <input class="input" type="text" id="gsBranch" data-k="defaultBranch" data-oninput="gs-field"
+                   placeholder="main" autocomplete="off" />
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">自动写 .gitignore</div>
+            <div class="set-row-note">初始化仓库时按项目类型生成一份，免得把 node_modules 提上去</div>
+          </div>
+          <button class="switch" id="gsIgnore" role="switch" aria-checked="false"
+                  data-k="autoGitignore" data-act="gs-toggle" title="自动写 .gitignore"></button>
+        </div>
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">自动首次提交</div>
+            <div class="set-row-note">初始化后立刻产生一次 Initial commit</div>
+          </div>
+          <button class="switch" id="gsFirst" role="switch" aria-checked="false"
+                  data-k="autoFirstCommit" data-act="gs-toggle" title="自动首次提交"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">项目仓库</div>
+        <div class="set-note" id="gsRepoNote">逐个项目读本机仓库状态</div>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>项目</th><th>分支</th><th>远端</th>
+            <th class="col-num"
+                title="未提交：git status 里待提交的条目数">未提交</th>
+            <!-- 不联网刷新远端缓存：设置页不该为了一个数字去发网络请求。
+                 代价是本地 origin/分支 引用过期时这个数会偏大，说清楚比假装准确好 -->
+            <th class="col-num"
+                title="未推送：本地领先 origin/分支 的提交数。不联网刷新远端缓存，缓存过期时可能偏大">未推送</th>
+          </tr>
+        </thead>
+        <tbody id="gsRepoBody"></tbody>
+      </table>
+    </div>
+
+    <div class="set-card">
+      <div class="set-link" role="button" tabindex="0" data-act="gs-token">
+        <div class="set-main">
+          <div class="set-row-label">GitHub 访问令牌</div>
+          <div class="set-row-note" id="gsTokenNote">推送仓库要凭证：在 GitHub 生成令牌后，第一次推送时交给钥匙串保存即可</div>
+        </div>
+        <svg class="about-arrow" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18 5a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V8.414l-9.95 9.95a1 1 0 0 1-1.414-1.414L15.586 7H10a1 1 0 1 1 0-2h8Z"/>
+        </svg>
+      </div>
     </div>
   </section>
 
@@ -384,6 +485,7 @@
 <script src="js/templates.js"></script>
 <script src="js/publish.js"></script>
 <script src="js/about.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

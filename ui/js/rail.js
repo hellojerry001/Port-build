@@ -45,7 +45,7 @@ const PAGES = {
   radar:     ["端口雷达", "本机监听端口实时一览"],
   publishes: ["发布记录", "Cloudflare 临时发布与认领"],
   templates: ["模板库",   "内置脚手架模板"],
-  settings:  ["设置",     "偏好与默认值"],
+  settings:  ["设置",     "GitHub 同步与提交身份"],
   about:     ["关于",     "版本信息与更新"],
 };
 
@@ -136,6 +136,8 @@ function goPage(key) {
   $("pgTitle").textContent = PAGES[key][0];
   $("pgSub").textContent = PAGES[key][1];
   if (key === "publishes") refreshPublishes();
+  // 进设置页时补数据（settings.js 定义；用 typeof 挡住加载顺序问题）
+  if (key === "settings" && typeof enterSettings === "function") enterSettings();
   // 进关于页时补数据并清掉提示圆点（about.js 定义；用 typeof 挡住加载顺序问题）
   if (key === "about" && typeof enterAbout === "function") enterAbout();
   document.querySelector(".app-main").scrollTop = 0;

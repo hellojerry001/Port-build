@@ -1,6 +1,7 @@
 mod appmeta;
 mod build;
 mod dialog;
+mod git;
 mod icon;
 mod open;
 mod ports;
@@ -80,7 +81,12 @@ pub fn run() {
             update::check_manifest,
             update::download_dmg,
             update::download_status,
-            update::cancel_download
+            update::cancel_download,
+            git::git_status,
+            git::git_repo_states,
+            git::save_git_settings,
+            git::apply_git_identity,
+            git::token_help_url
         ])
         .setup(|app| {
             // 菜单栏（托盘）常驻

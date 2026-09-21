@@ -231,6 +231,8 @@
   --switch-knob:     16px;
   --grid-min:        320px;   /* 项目卡片 */
   --grid-min-page:   340px;   /* 发布记录页两列起 */
+  --set-name-w:      220px;   /* 设置页仓库表：项目名省略宽度 */
+  --set-remote-w:    260px;   /* 设置页仓库表：远端地址省略宽度 */
   --hairline:        var(--px-1);
   --gap-inline:      var(--px-8);   /* 行内控件间距 */
   --gap-row:         var(--px-12);  /* 行间距 */
