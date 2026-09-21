@@ -423,7 +423,15 @@
   padding: var(--px-2) var(--px-6);
   border-radius: var(--r-5);
   flex: none;
+  /* inline-flex 是为了容纳标签内的状态点（Mac 卡片）：
+     `.dot` 靠宽高画圆，而普通 inline 元素的宽高不生效，点会塌成一条线。
+     只有一个文本子元素时，gap 不起作用，对其余标签是零变化。 */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-5);
 }
+
+.tag > .dot { flex: none; }
 
 /* ============================== 表格 ============================== */
 /* 无行分割线：表头靠小号灰字区分，数据行靠圆角 hover 底色点亮。

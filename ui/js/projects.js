@@ -105,12 +105,16 @@ function renderProjects() {
           : "") + "></span>"
       : "";
 
+    // 状态点：Mac 卡片并进「Mac」标签里 —— 卡片头多了图标缩略图后，
+    // 点夹在图标与名称之间太挤；Web 卡片没有类型标签可依附，点仍留在名称左侧
+    const dot = UI.dot(live);
+
     return '<div class="card">' +
         '<div class="card-head">' +
-          UI.dot(live) +
           icon +
+          (mac ? "" : dot) +
           '<span class="card-name">' + esc(p.name) + "</span>" +
-          (mac ? '<span class="tag">Mac</span>' : "") +
+          (mac ? '<span class="tag">' + dot + "Mac</span>" : "") +
           (p.scaffold ? '<span class="tag">' + esc(p.scaffold) + "</span>" : "") +
           (p.port ? '<span class="port-chip">:' + esc(p.port) + "</span>" : "") +
         "</div>" +
