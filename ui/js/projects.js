@@ -275,6 +275,7 @@ async function submitProject() {
    不再为改图标单开一个卡片入口。 */
 let buildId = "", buildTimer = null, buildT0 = 0, buildDmg = "";
 let bdIcon = "", bdName = "";
+let buildAutoPush = false, buildAutoPushed = false;   // 勾选项 + 「每次构建只自动推一次」守卫
 
 /* 把当前图标画进配置态的方形预览（base64 来自 project_icon / app_meta） */
 function paintBuildIcon() {
@@ -318,6 +319,7 @@ async function openBuild(id) {
 
   buildId = id;
   buildDmg = "";
+  buildAutoPushed = false;            // 每次打开都重置「只推一次」守卫
   buildT0 = Date.now();
   $("bdName").textContent = p.name;
 
@@ -341,6 +343,9 @@ async function openBuild(id) {
   $("bdNameHint").textContent =
     "写入 tauri.conf.json 的 productName，决定 .app 文件名与 Dock 显示名";
   paintBuildIcon();
+  buildAutoPush = localStorage.getItem("pb-build-autopush") === "1";
+  const apEl = $("bdAutoPush");
+  if (apEl) apEl.checked = buildAutoPush;
   showBuildCfg();
   openModal("buildModal");
 
@@ -360,6 +365,7 @@ async function openBuild(id) {
 /* 「开始打包」：名称若改过先落盘，再起打包进程并切到打包态 */
 async function startBuild() {
   if (!buildId) return;
+  buildAutoPushed = false;            // 新一轮构建允许再自动推一次
   const name = $("bdAppName").value.trim();
   if (name && name !== bdName) {
     try {
@@ -404,6 +410,12 @@ onChange("build-name", async el => {
     toast(String(e));
     el.value = bdName;                   // 回滚，别让界面显示一个没落盘的名字
   }
+});
+
+/* 配置态勾选「打包成功后自动推送 GitHub」：即时同步并持久化，下次打开记住 */
+onChange("build-autopush", el => {
+  buildAutoPush = el.checked;
+  localStorage.setItem("pb-build-autopush", el.checked ? "1" : "0");
 });
 
 /* 配置态换图标：选图 → 生成整套图标（含热更新已构建的 .app）→ 刷新两处预览 */
@@ -456,11 +468,42 @@ async function tickBuild() {
   if (s.dmg) {
     buildDmg = s.dmg;
     $("bdReveal").style.display = "";
+    // 打包成功 + 勾选了自动推送 + 本次构建还没推过 → 静默提交并推送该项目
+    if (!s.running && buildAutoPush && !buildAutoPushed) autoPushAfterBuild();
   }
   if (!s.running) {
     clearInterval(buildTimer);
     buildTimer = null;
     $("bdCancel").disabled = true;
+  }
+}
+
+/* 打包成功后的全自动静默推送：读状态 → 按 dirty/unpushed 分流 →
+   提交并推送（默认说明）或仅推送 → toast 结果。不弹面板、不阻塞。 */
+async function autoPushAfterBuild() {
+  buildAutoPushed = true;                       // 先置位，防止 tickBuild 1.5s 轮询重复触发
+  const p = projects.find(x => x.id === buildId);
+  if (!p) return;
+  toast("正在自动推送到 GitHub…");
+  let states;
+  try {
+    states = await invoke("git_repo_states");
+  } catch (e) {
+    toast("读取仓库状态失败：" + String(e));
+    return;
+  }
+  const r = (Array.isArray(states) ? states : []).find(s => s.id === buildId);
+  if (!r || !r.isRepo) { toast("不是 git 仓库，跳过自动推送"); return; }
+  if (!r.remote)      { toast("没有远端，无法自动推送（先 git remote add origin）"); return; }
+  if (r.dirty === 0 && r.unpushed === 0) { toast("没有需要推送的改动"); return; }
+  try {
+    const out = r.dirty > 0
+      ? await invoke("git_commit_push", { path: p.path, message: "build: 打包 " + (bdName || p.name) })
+      : await invoke("git_push", { path: p.path });
+    toast(out.headline || "已推送到 GitHub");
+    await loadRepoStates();                     // 刷新卡片上的 git 标记
+  } catch (e) {
+    toast("自动推送失败：" + String(e));
   }
 }
 

@@ -451,6 +451,14 @@
         <label class="field-label">应用标识</label>
         <div class="field-static" id="bdAppId"></div>
       </div>
+
+      <div class="field">
+        <label class="opt-check">
+          <input type="checkbox" id="bdAutoPush" data-onchange="build-autopush" />
+          <span>打包成功后自动推送到 GitHub</span>
+        </label>
+        <div class="field-hint">勾选后，构建完成的瞬间会自动提交并推送到该项目的远端（使用默认提交说明）</div>
+      </div>
     </div>
 
     <!-- 打包态 -->

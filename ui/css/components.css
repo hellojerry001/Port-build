@@ -798,6 +798,23 @@
   flex: none;
 }
 
+/* 配置态里的勾选项（如「打包成功后自动推送 GitHub」），复用 checkbox 视觉 */
+.opt-check {
+  display: flex;
+  align-items: center;
+  gap: var(--px-8);
+  margin-top: var(--px-14);
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+.opt-check input {
+  width: var(--checkbox);
+  height: var(--checkbox);
+  accent-color: var(--c-control);
+  cursor: pointer;
+  flex: none;
+}
+
 .del-tip {
   color: var(--c-text-3);
   font-size: var(--fs-11);
@@ -1232,20 +1249,20 @@
   margin-left: var(--px-4);
   padding: var(--px-2) var(--px-6);
   border-radius: var(--r-6);
-  background: var(--c-surface-7);
+  background: var(--c-surface-3);
   color: var(--c-text-2);
   font-size: var(--fs-11);
   line-height: 1.4;
   white-space: nowrap;
   transition: background .12s, color .12s;
 }
-.git-badge:hover { background: var(--c-accent-bg); color: var(--c-text-inv); }
-/* 阻塞项（有未提交改动）：用 warn 色描边强调，不抢填充 */
+.git-badge:hover { background: var(--c-surface-6); color: var(--c-text); }
+/* 阻塞项（有未提交改动）：只保留 warn 色文字，其余和默认 tag 一致（无描边、灰底） */
 .git-badge.is-warn {
   color: var(--c-warn-strong);
-  box-shadow: inset 0 0 0 var(--hairline) var(--c-warn-strong);
+  box-shadow: none;
 }
-.git-badge.is-warn:hover { background: var(--c-warn-strong); color: var(--c-text-inv); }
+.git-badge.is-warn:hover { background: var(--c-surface-6); color: var(--c-text); }
 
 /* -------- 面板 -------- */
 .gp-row { display: flex; gap: var(--px-10); padding: var(--px-4) 0; font-size: var(--fs-12); }
