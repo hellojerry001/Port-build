@@ -10,7 +10,7 @@
   ],
   "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.4.0_aarch64.dmg",
   "dmg_name": "VibeButler_0.4.0_aarch64.dmg",
-  "dmg_size": 5577269,
+  "dmg_size": 5576979,
   "min_macos": "12.0",
   "mandatory": false
 }
