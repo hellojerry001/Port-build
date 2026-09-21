@@ -140,8 +140,11 @@ async function checkUpdate(manual) {
   renderAbout();
 
   try {
-    // raw.githubusercontent.com 带 max-age=300 的缓存，加时间戳绕开它，
-    // 否则刚发布的新版本最多要等 5 分钟才可见
+    // `?t=` 只解决**本机 webview 自己的 HTTP 缓存**（它按完整 URL 做键，加了参数
+    // 就一定 miss）。但别指望它绕开 CDN —— 实测 raw.githubusercontent 的 CDN
+    // **忽略查询串**：三个不同 `?t=` 拿到的 ETag 完全相同，所以它仍可能返回最多
+    // 5 分钟（响应头 cache-control: max-age=300）前的旧清单。
+    // 结论：刚发完版就点「检查更新」可能报「已是最新」，等几分钟再点即可。
     const r = await fetch(abInfo.manifestUrl + "?t=" + Date.now(), { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const text = await r.text();

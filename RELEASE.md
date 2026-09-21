@@ -63,6 +63,12 @@ git add -A && git commit -m "release: v$V" && git push origin main
 
 推送完成后，旧版本的应用点「检查更新」即可看到新版本。
 
+> ⚠️ **别急着验收**：`raw.githubusercontent.com` 的 CDN 有最长 5 分钟的缓存
+>（响应头 `cache-control: max-age=300`），且实测它**忽略查询串** ——
+>换 `?t=时间戳` 拿到的 ETag 和不带参数时完全一样，所以加时间戳只能绕开
+>本机 webview 的缓存，绕不开 CDN。刚 push 完就点「检查更新」可能仍报
+>「已是最新」，等几分钟再点一次即可。
+
 ## 验证清单
 
 ```bash
