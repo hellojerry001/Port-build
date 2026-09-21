@@ -9,6 +9,10 @@ src-tauri/target/
 *.app/
 *.app
 
+# 但 dist/ 里的是「已发布」的安装包，必须入库：
+# 「关于」页的检查更新就是从 raw 直链读它（见 RELEASE.md）
+!dist/*.dmg
+
 # macOS
 .DS_Store
 

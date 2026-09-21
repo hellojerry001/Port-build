@@ -815,3 +815,221 @@
 }
 
 .toast.is-open { display: block; }
+
+/* ============================== 关于页 ============================== */
+/* 版式对位系统「关于」面板：居中的图标 + 应用名，下面两张卡片。
+   与全站一致：无分割线，卡片靠底色浮起，行与行之间只留间距。 */
+
+.about-hero {
+  text-align: center;
+  padding: var(--px-18) 0 var(--px-24);
+}
+
+/* 空图标用中性底占位，避免下载失败时露出一个空洞 */
+.about-icon {
+  width: var(--about-icon);
+  height: var(--about-icon);
+  margin: 0 auto;
+  border-radius: var(--r-14);
+  background-color: var(--c-surface-3);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.about-name {
+  font-size: var(--fs-20);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--ls-wide);
+  margin-top: var(--px-12);
+}
+
+.about-sub {
+  font-size: var(--fs-12);
+  color: var(--c-text-2);
+  margin-top: var(--px-4);
+}
+
+.about-card {
+  background: var(--c-surface-1);
+  border-radius: var(--r-12);
+  padding: 0 var(--px-16);
+  margin-bottom: var(--gap-row);
+}
+
+/* 每行上下各 14px：卡片无内边距，间距全由行自己给，首末行才和卡片边缘对齐 */
+.about-row {
+  display: flex;
+  align-items: center;
+  gap: var(--px-12);
+  padding: var(--px-14) 0;
+}
+
+.about-main { flex: 1; min-width: 0; }
+
+.about-label {
+  font-size: var(--fs-13);
+  display: flex;
+  align-items: center;
+  gap: var(--px-8);
+}
+
+/* 版本号用等宽：0.4.0 与 0.10.0 这类要一眼看出差别 */
+.about-ver {
+  font-family: var(--ff-mono);
+  color: var(--c-text-2);
+}
+
+.about-ver.is-new {
+  color: var(--c-text);
+  font-weight: var(--fw-semi);
+}
+
+.about-tag {
+  font-size: var(--fs-10);
+  color: var(--c-text-3);
+  background: var(--c-surface-3);
+  padding: var(--px-1) var(--px-6);
+  border-radius: var(--r-5);
+}
+
+.about-note {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  margin-top: var(--px-3);
+  line-height: var(--lh-15);
+}
+
+.about-note.is-bad { color: var(--c-danger); }
+
+.about-notes {
+  margin: 0;
+  padding: 0 0 var(--px-14) var(--px-16);
+  font-size: var(--fs-12);
+  color: var(--c-text-2);
+  line-height: var(--lh-17);
+}
+
+.about-notes li { margin-bottom: var(--px-2); }
+.about-notes li.is-muted {
+  list-style: none;
+  margin-left: calc(var(--px-16) * -1);
+  color: var(--c-text-3);
+}
+
+.about-row.is-link { cursor: pointer; }
+
+.about-arrow {
+  width: var(--icon);
+  height: var(--icon);
+  flex: none;
+  color: var(--c-text-3);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.about-row.is-link:hover .about-label,
+.about-row.is-link:hover .about-arrow { color: var(--c-text); }
+
+.about-prog { padding: 0 0 var(--px-14); }
+
+.about-prog-track {
+  height: var(--px-4);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-3);
+  overflow: hidden;
+}
+
+.about-prog-track > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: var(--r-pill);
+  /* 不用 --c-primary-bg：那在深色下只有 16% 白，进度几乎看不出来。
+     取 --c-text（两套主题的最强前景），轨道用 --c-surface-3，对比拉开。 */
+  background: var(--c-text);
+  transition: width var(--dur-fast) var(--ease);
+}
+
+.about-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-12);
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  padding: var(--px-4) var(--px-2) var(--px-10);
+}
+
+.about-link {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.about-link:hover { color: var(--c-text-2); }
+
+/* ============================== 开关 ============================== */
+/* 滑钮两套主题都是纯白（见 tokens.css 的 2.4c），所以这里只管轨道与位移 */
+
+.switch {
+  width: var(--switch-w);
+  height: var(--switch-h);
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--c-switch-off);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: var(--px-2);
+  left: var(--px-2);
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: var(--r-full);
+  background: var(--c-switch-knob);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.switch.is-on { background: var(--c-switch-on); }
+
+/* 位移 = 轨道宽 - 滑钮宽 - 两侧各 2px 内边距 */
+.switch.is-on::after {
+  transform: translateX(calc(var(--switch-w) - var(--switch-knob) - var(--px-4)));
+}
+
+.switch:focus-visible {
+  outline: var(--hairline) solid var(--c-ring);
+  outline-offset: var(--px-2);
+}
+
+/* 侧栏「关于」上的提示圆点：检测到新版本才由 about.js 加上。
+   底色取 --c-text（深色近白 / 浅色近黑），两套主题下都够醒目。 */
+/* ⚠️ 必须用 ::before：`.rail-btn::after` 已经被悬浮名称气泡占用
+   （content: attr(data-tip) + opacity: 0）。挂在 ::after 上会有两个后果——
+   气泡被顶掉（这个按钮再也弹不出名字），而且从气泡继承来的 `opacity: 0`
+   不会被覆写，圆点根本不可见。 */
+.rail-btn.has-dot::before {
+  content: "";
+  position: absolute;
+  top: var(--px-5);
+  right: var(--px-5);
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: var(--r-full);
+  background: var(--c-text);
+  /* 描一圈 rail 底色的「切口」：选中态是白底，圆点直接被吃掉；
+     有了这圈，无论选中 / 悬停 / 静置都能看清，且跟着主题自动换色 */
+  box-shadow: 0 0 0 var(--px-2) var(--c-rail);
+  z-index: 1;
+}

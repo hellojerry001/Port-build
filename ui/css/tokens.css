@@ -84,6 +84,7 @@
   --fs-13: 13px;
   --fs-14: 14px;
   --fs-15: 15px;
+  --fs-20: 20px;   /* 关于页的应用名，全界面唯一的一处「标题级」字号 */
   --lh-15:  1.5;
   --lh-155: 1.55;
   --lh-16:  1.6;
@@ -191,6 +192,12 @@
   --c-primary-bg-hover: var(--w24);
   --c-primary-fg:       var(--c-text);
 
+  /* 2.4c 开关（关于页的自动检查）。滑钮在两套主题下都是纯白：
+     深色是「暗底 + 白点」，浅色打开的底是近黑，白点同样成立，所以滑钮不必重绑 */
+  --c-switch-off: var(--w12);
+  --c-switch-on:  var(--w24);
+  --c-switch-knob: var(--w0);
+
   /* 2.5 状态色 */
   --c-ok:          var(--ok900);
   --c-ok-strong:   var(--ok950);
@@ -218,6 +225,10 @@
   --list-max-h:      390px;
   --build-log-h:     240px;   /* 打包日志可视高度 */
   --icon-pick:       48px;    /* 打包配置态的应用图标预览 */
+  --about-icon:      64px;    /* 关于页顶部的应用图标 */
+  --switch-w:        36px;
+  --switch-h:        20px;
+  --switch-knob:     16px;
   --grid-min:        320px;   /* 项目卡片 */
   --grid-min-page:   340px;   /* 发布记录页两列起 */
   --hairline:        var(--px-1);
@@ -279,6 +290,10 @@
   --c-primary-bg:       var(--lt-primary);
   --c-primary-bg-hover: var(--bk85);
   --c-primary-fg:       var(--c-text-inv);
+
+  /* 开关：浅色下打开的底直接用主按钮的近黑，与「主操作」保持同一套语言 */
+  --c-switch-off: var(--bk12);
+  --c-switch-on:  var(--lt-primary);
 
   /* 状态色 */
   --c-ok:          var(--ok-lt);

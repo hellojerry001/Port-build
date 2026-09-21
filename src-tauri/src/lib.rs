@@ -8,6 +8,7 @@ mod projects;
 mod publish;
 mod publishes;
 mod scaffolds;
+mod update;
 
 use build::BuildTable;
 use projects::ProcTable;
@@ -44,11 +45,13 @@ pub fn run() {
         // 进程表从磁盘恢复：应用重启后仍认得上一次拉起来的项目
         .manage(Mutex::new(projects::load_running()) as ProcTable)
         .manage(BuildTable::default())
+        .manage(update::DownloadTable::default())
         .invoke_handler(tauri::generate_handler![
             ports::list_ports,
             ports::kill_port,
             open::open_url,
             open::show_in_finder,
+            open::open_file,
             dialog::pick_folder,
             dialog::pick_file,
             icon::project_icon,
@@ -72,7 +75,12 @@ pub fn run() {
             publishes::clear_publishes,
             scaffolds::list_scaffolds,
             scaffolds::suggest_port,
-            scaffolds::create_project
+            scaffolds::create_project,
+            update::app_info,
+            update::check_manifest,
+            update::download_dmg,
+            update::download_status,
+            update::cancel_download
         ])
         .setup(|app| {
             // 菜单栏（托盘）常驻

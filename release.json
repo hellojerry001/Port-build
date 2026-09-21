@@ -1,0 +1,16 @@
+{
+  "version": "0.4.0",
+  "date": "2026-09-21",
+  "notes": [
+    "新增「关于」页：应用信息、检查更新、一键下载新版本",
+    "检测到新版本时，侧栏「关于」入口显示提示圆点",
+    "打包弹窗内可直接改应用图标与 APP 名称（原来的「换图标」入口撤掉）",
+    "浅色主题去分割线化：页签改为选中药丸，主操作改用近黑实底",
+    "版本清单与安装包托管在自己的 Git 仓库，检查更新不依赖第三方服务"
+  ],
+  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.4.0_aarch64.dmg",
+  "dmg_name": "VibeButler_0.4.0_aarch64.dmg",
+  "dmg_size": 5577269,
+  "min_macos": "12.0",
+  "mandatory": false
+}

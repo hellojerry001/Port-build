@@ -33,3 +33,21 @@ pub fn show_in_finder(path: String) -> Result<(), String> {
         .map_err(|e| format!("打开访达失败: {e}"))?;
     Ok(())
 }
+
+/// 用系统默认方式打开文件 —— 更新下载完的 `.dmg` 用它直接挂载并弹出安装窗。
+/// 与 `show_in_finder` 的区别是那个只选中、这个真打开。
+#[tauri::command]
+pub fn open_file(path: String) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("路径为空".into());
+    }
+    if !Path::new(path).exists() {
+        return Err(format!("文件不存在：{path}"));
+    }
+    Command::new("open")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("打开文件失败: {e}"))?;
+    Ok(())
+}

@@ -31,15 +31,22 @@ const NAV = [
     icon: '<circle cx="9.5" cy="6.8" r="2.2"/><path d="M4.4 6.8h2.9M11.8 6.8h3.8"/>' +
           '<circle cx="11" cy="13.2" r="2.2"/><path d="M4.4 13.2h4.4M13.3 13.2h2.3"/>',
   },
+  {
+    // 检测到新版本时，about.js 会给这个按钮加 .has-dot（见 components.css）
+    key: "about", label: "关于", bot: true,
+    icon: '<circle cx="10" cy="10" r="6.6"/><path d="M10 9.4v4.2"/>' +
+          '<circle cx="10" cy="6.9" r=".9" fill="currentColor" stroke="none"/>',
+  },
 ];
 
 /* 页面 key → [标题, 副标题] */
 const PAGES = {
-  projects:  ["项目管理", "PortButler · 项目 & 端口管理"],
+  projects:  ["项目管理", "VibeButler · 项目 & 端口管理"],
   radar:     ["端口雷达", "本机监听端口实时一览"],
   publishes: ["发布记录", "Cloudflare 临时发布与认领"],
   templates: ["模板库",   "内置脚手架模板"],
   settings:  ["设置",     "偏好与默认值"],
+  about:     ["关于",     "版本信息与更新"],
 };
 
 /* 主题三态各一个图标：按钮上用「当前选择」的那个，一眼能看出现在是什么模式 */
@@ -129,6 +136,8 @@ function goPage(key) {
   $("pgTitle").textContent = PAGES[key][0];
   $("pgSub").textContent = PAGES[key][1];
   if (key === "publishes") refreshPublishes();
+  // 进关于页时补数据并清掉提示圆点（about.js 定义；用 typeof 挡住加载顺序问题）
+  if (key === "about" && typeof enterAbout === "function") enterAbout();
   document.querySelector(".app-main").scrollTop = 0;
 }
 

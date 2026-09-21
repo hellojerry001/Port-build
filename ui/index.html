@@ -76,6 +76,78 @@
       <div class="void-desc">默认端口起始值、模板存放目录、主题等偏好设置。<br>这一页还在排期里。</div>
     </div>
   </section>
+
+  <!-- ============================== 关于 ============================== -->
+  <!-- 版本清单与安装包都托管在自己的 Git 仓库里（见仓库根的 RELEASE.md），
+       这一页只负责把它读出来、比版本、把包下下来 -->
+  <section class="page" id="page-about">
+    <div class="about-hero">
+      <div class="about-icon is-empty" id="abIcon"></div>
+      <div class="about-name" id="abName">—</div>
+      <div class="about-sub">本机项目、端口与打包管理</div>
+    </div>
+
+    <div class="about-card">
+      <div class="about-row">
+        <div class="about-main">
+          <div class="about-label">当前版本 <span class="about-ver" id="abVer">—</span></div>
+          <div class="about-note" id="abNote"></div>
+        </div>
+        <button class="btn" id="abCheck" data-act="about-check">检查更新</button>
+      </div>
+
+      <div class="about-row">
+        <div class="about-main">
+          <div class="about-label">有新版本时自动检查</div>
+          <div class="about-note">启动后静默查一次，只在真的发现新版本时才提示</div>
+        </div>
+        <button class="switch" id="abAuto" role="switch" aria-checked="false"
+                data-act="about-auto" title="自动检查更新"></button>
+      </div>
+    </div>
+
+    <!-- 只有发现新版本才显示 -->
+    <div class="about-card" id="abUpdate" hidden>
+      <div class="about-row">
+        <div class="about-main">
+          <div class="about-label">
+            发现新版本 <span class="about-ver is-new" id="abLatest"></span>
+            <span class="about-tag" id="abDate" hidden></span>
+          </div>
+          <div class="about-note" id="abMeta"></div>
+        </div>
+        <button class="btn is-primary" id="abDl" data-act="about-download">下载并安装</button>
+        <button class="btn is-ghost" id="abCancel" data-act="about-cancel" hidden>取消</button>
+        <button class="btn is-ghost" id="abReveal" data-act="about-reveal" hidden>在访达中显示</button>
+      </div>
+
+      <ul class="about-notes" id="abNotes"></ul>
+
+      <div class="about-prog" id="abProg" hidden>
+        <div class="about-prog-track"><i id="abProgBar"></i></div>
+        <div class="about-note" id="abProgText"></div>
+      </div>
+    </div>
+
+    <div class="about-card">
+      <div class="about-row is-link" role="button" tabindex="0" data-act="about-issues">
+        <div class="about-main">
+          <div class="about-label">反馈问题或建议</div>
+          <div class="about-note">在仓库里开一个 issue</div>
+        </div>
+        <svg class="about-arrow" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M7 13 13 7"/><path d="M8.6 7H13v4.4"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="about-foot">
+      <button class="about-link" data-act="about-repo">
+        GitHub · <span id="abRepo"></span>
+      </button>
+      <span>检查更新只访问这个仓库</span>
+    </div>
+  </section>
 </main>
 
 <!-- ============================== 从模板新建 ============================== -->
@@ -311,6 +383,7 @@
 <script src="js/radar.js"></script>
 <script src="js/templates.js"></script>
 <script src="js/publish.js"></script>
+<script src="js/about.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

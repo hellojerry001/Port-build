@@ -32,6 +32,15 @@ function boot() {
   setInterval(() => {
     if (modalOpen("pubListModal") || curPage === "publishes") refreshPublishes();
   }, 5000);
+
+  // 启动后静默查一次更新：延迟到首屏渲染完再发请求，且只有「有新版本」才会
+  // 在侧栏「关于」上亮圆点 —— 这里刻意不调 enterAbout()，那个会清掉圆点
+  setTimeout(() => {
+    if (typeof loadAbout !== "function") return;
+    loadAbout().then(() => {
+      if (typeof autoCheckOn === "function" && autoCheckOn()) checkUpdate(false);
+    });
+  }, 2500);
 }
 
 boot();

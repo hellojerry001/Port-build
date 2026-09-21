@@ -32,7 +32,7 @@ use crate::projects::{self, ProcTable, Project};
 /// `alive()` 于是永远 true，前端就永远「打包中」。持有 `Child` 后改用
 /// `try_wait()` 轮询：既能判终态，退出瞬间顺带把僵尸回收掉。
 #[derive(Default)]
-pub struct BuildTable(pub Mutex<HashMap<String, Child>>);
+pub struct BuildTable(Mutex<HashMap<String, Child>>);
 
 /// 回给前端的日志行数。多了没意义（cargo 输出极长），少了看不出进度
 const TAIL_LINES: usize = 30;
