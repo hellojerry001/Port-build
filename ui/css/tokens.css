@@ -175,7 +175,7 @@
   --c-text-inv: var(--w0);    /* 强调底上的反白 */
 
   /* 2.4 灰阶交互件（刻意不用彩色，靠透明度区分） */
-  --c-indicator:     var(--w78);  /* rail 选中指示条 */
+  --c-indicator:     var(--w78);  /* tab 选中指示条 */
   --c-control:       var(--k400); /* 原生控件着色（复选框） */
   --c-spinner-track: var(--w25);
   --c-spinner-head:  var(--w90);
@@ -197,7 +197,6 @@
   --rail-btn:      40px;
   --icon:          20px;
   --icon-stroke:   1.6;
-  --indicator-w:   16px;
   --dot:           7px;
   --spinner:       10px;
   --checkbox:      14px;

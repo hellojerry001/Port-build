@@ -59,19 +59,6 @@
   color: var(--c-text);
 }
 
-/* 选中指示：图标下方短横线 */
-.rail-btn.is-on::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--px-5) * -1);
-  transform: translateX(-50%);
-  width: var(--indicator-w);
-  height: var(--px-2);
-  border-radius: var(--r-2);
-  background: var(--c-indicator);
-}
-
 /* 悬浮名称气泡（浮在 rail 右侧） */
 .rail-btn::after {
   content: attr(data-tip);
