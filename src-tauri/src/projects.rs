@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -220,7 +220,18 @@ pub(crate) fn alive(pid: u32) -> bool {
 /// 独立进程组是关键：`tauri dev` / `npm run dev` 会拉起子进程，
 /// 只有杀整组才能收干净；脱离 RAII 是为了应用退出时不连带杀掉用户的项目。
 pub(crate) fn spawn_grouped(cwd: &str, script: &str, log: &fs::File) -> Result<u32, String> {
-    let child = Command::new("zsh")
+    let child = spawn_child(cwd, script, log)?;
+    let pid = child.id();
+    std::mem::forget(child);
+    Ok(pid)
+}
+
+/// 同 spawn_grouped，但把 `Child` 交还给调用方。
+/// 打包走这条：调用方要靠 `try_wait()` 轮询终态——顺带回收僵尸。
+/// （如果这里也 forget，父进程永不 wait，退出的子进程永远是僵尸，
+/// `kill -0` 对僵尸又返回成功，状态就永远判成「进行中」。）
+pub(crate) fn spawn_child(cwd: &str, script: &str, log: &fs::File) -> Result<Child, String> {
+    Command::new("zsh")
         .arg("-lc")
         .arg(script)
         .current_dir(cwd)
@@ -232,10 +243,7 @@ pub(crate) fn spawn_grouped(cwd: &str, script: &str, log: &fs::File) -> Result<u
         ))
         .process_group(0)
         .spawn()
-        .map_err(|e| format!("启动失败: {e}"))?;
-    let pid = child.id();
-    std::mem::forget(child);
-    Ok(pid)
+        .map_err(|e| format!("启动失败: {e}"))
 }
 
 /// 打开日志文件（覆盖写）。日志目录在 data_dir() 里已建好。

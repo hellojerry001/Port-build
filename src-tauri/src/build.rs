@@ -11,12 +11,13 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::projects::{self, ProcTable, Project};
 
-/// 项目 id → 打包进程 pid。只用一张表：同一项目同时只允许一个打包进程
+/// 项目 id → 打包进程。只用一张表：同一项目同时只允许一个打包进程
 ///
 /// ⚠️ 必须是 **newtype 结构体**，不能写成
 /// `pub type BuildTable = Mutex<HashMap<String, u32>>`：
@@ -24,8 +25,14 @@ use crate::projects::{self, ProcTable, Project};
 /// 于是它和 `projects::ProcTable` 撞成同一个 TypeId，启动即 panic
 /// 「state for type 'Mutex<HashMap<String, u32>>' is already being managed」。
 /// 这个坑编译期看不出来，只有真机跑起来才炸。
+///
+/// 值必须是 **`Child` 本体**而不是裸 pid：`spawn_grouped` 那套 `mem::forget`
+/// 的姿势在这行不通——父进程从不 `wait()`，退出的子进程永远变不成
+/// 「已被回收」，只会一直挂在进程表上当僵尸；而 `kill -0` 对僵尸照样成功，
+/// `alive()` 于是永远 true，前端就永远「打包中」。持有 `Child` 后改用
+/// `try_wait()` 轮询：既能判终态，退出瞬间顺带把僵尸回收掉。
 #[derive(Default)]
-pub struct BuildTable(pub Mutex<HashMap<String, u32>>);
+pub struct BuildTable(pub Mutex<HashMap<String, Child>>);
 
 /// 回给前端的日志行数。多了没意义（cargo 输出极长），少了看不出进度
 const TAIL_LINES: usize = 30;
@@ -120,37 +127,37 @@ pub fn build_dmg(
     _procs: tauri::State<'_, ProcTable>,
 ) -> Result<u32, String> {
     let p: Project = projects::find(&id).ok_or("项目不存在")?;
-    {
-        let table = builds.inner().0.lock().unwrap();
-        if let Some(pid) = table.get(&id) {
-            if projects::alive(*pid) {
-                return Err("这个项目正在打包中".into());
-            }
-        }
-    }
-
     let script = projects::wrap_cmd(&p, &projects::build_command_of(&p));
     let path = log_path(&id);
     let _ = fs::remove_file(&path); // 每次打包都是一份全新日志
     let log = projects::open_log(&format!("{id}.build.log"))?;
 
-    let pid = projects::spawn_grouped(&p.path, &script, &log)?;
-    builds.inner().0.lock().unwrap().insert(id, pid);
+    let mut table = builds.inner().0.lock().unwrap();
+    if let Some(old) = table.get_mut(&id) {
+        // 旧条目还活着才算「正在打包」；上次已退出（哪怕还没来得及轮询清表）就放行
+        if old.try_wait().map(|s| s.is_none()).unwrap_or(false) {
+            return Err("这个项目正在打包中".into());
+        }
+    }
+    let child = projects::spawn_child(&p.path, &script, &log)?;
+    let pid = child.id();
+    table.insert(id, child);
     Ok(pid)
 }
 
 #[tauri::command]
 pub fn build_status(id: String, builds: tauri::State<'_, BuildTable>) -> Result<BuildStatus, String> {
     let p = projects::find(&id).ok_or("项目不存在")?;
-    let running = builds
-        .inner()
-        .0
-        .lock()
-        .unwrap()
-        .get(&id)
-        .copied()
-        .map(projects::alive)
+    let mut table = builds.inner().0.lock().unwrap();
+    // try_wait() 返回 Some = 已退出，且这一刻僵尸已被回收
+    let running = table
+        .get_mut(&id)
+        .map(|c| c.try_wait().map(|s| s.is_none()).unwrap_or(false))
         .unwrap_or(false);
+    if !running {
+        table.remove(&id); // 清掉终态条目，下次 build_dmg 直接放行
+    }
+    drop(table);
     let dmg = find_dmg(Path::new(&p.path));
     let bundle_dir = dmg
         .as_ref()
@@ -167,14 +174,13 @@ pub fn build_status(id: String, builds: tauri::State<'_, BuildTable>) -> Result<
 /// 终止打包。进程组一起收掉，否则 cargo 的子进程会留在本机继续吃 CPU
 #[tauri::command]
 pub fn cancel_build(id: String, builds: tauri::State<'_, BuildTable>) -> Result<String, String> {
-    let pid = builds
-        .inner()
-        .0
-        .lock()
-        .unwrap()
-        .get(&id)
-        .copied()
-        .ok_or("这个项目没有在打包")?;
+    let pid = {
+        let table = builds.inner().0.lock().unwrap();
+        table
+            .get(&id)
+            .map(|c| c.id())
+            .ok_or("这个项目没有在打包")?
+    }; // 锁在这里就放掉，别陪着 kill_group 睡那 600ms
     projects::kill_group(pid);
     builds.inner().0.lock().unwrap().remove(&id);
     Ok(format!("已终止打包进程组 {pid}"))
@@ -216,6 +222,26 @@ mod tests {
         let got = find_dmg(&root).expect("应找到 dmg");
         assert_eq!(got.file_name().unwrap(), "app-new.dmg");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 打包状态轮询的根基：子进程退出后 `try_wait()` 必须能拿到 Some。
+    /// 这条守护「打包成功却一直显示打包中」的回归——那种情况只会发生在
+    /// 有人把表里的 `Child` 改回裸 pid + `kill -0` 探活（僵尸进程骗过 kill -0）。
+    #[test]
+    fn finished_child_is_reported_by_try_wait() {
+        use std::process::Command;
+        let mut c = Command::new("true").spawn().expect("spawn true");
+        let mut exited = false;
+        for _ in 0..50 {
+            if c.try_wait().map(|s| s.is_some()).unwrap_or(false) {
+                exited = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(exited, "true 应很快退出并被 try_wait 捕获");
+        // 再轮询一次仍是终态，且不报错（回收后的进程可重复 try_wait）
+        assert!(c.try_wait().unwrap().is_some());
     }
 
     /// 守护 newtype：一旦有人图省事把 BuildTable 改回 `type X = Mutex<HashMap<..>>`，
