@@ -357,6 +357,25 @@
 
 .card-head { display: flex; align-items: center; gap: var(--px-8); }
 
+/* Mac 卡片头：当前启动图标缩略图（背景图来自 base64，空时显中性占位） */
+.card-icon {
+  width: var(--rail-btn);
+  height: var(--rail-btn);
+  border-radius: var(--r-10);
+  background-color: var(--c-surface-3);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  flex: none;
+  border: var(--hairline) solid var(--c-border);
+}
+.card-icon.is-empty::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .card-name {
   font-weight: var(--fw-semi);
   font-size: var(--fs-14);

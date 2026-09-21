@@ -18,6 +18,22 @@ let projKind = localStorage.getItem(TAB_KEY) === "mac" ? "mac" : "web";
 /* 后端已把 kind 填成 web / mac，这里只兜一层防御 */
 const kindOf = p => (p.kind === "mac" ? "mac" : "web");
 
+/* Mac 项目当前图标的 base64 缩略图缓存（key = 项目 id） */
+let macIcons = new Map();
+
+/* 拉一遍 Mac 项目的图标，填进 macIcons 后重渲染卡片 */
+async function loadMacIcons() {
+  const macs = projects.filter(p => kindOf(p) === "mac");
+  if (!macs.length) return;
+  await Promise.all(macs.map(async p => {
+    try {
+      const d = await invoke("project_icon", { id: p.id });
+      if (d) macIcons.set(p.id, d);
+    } catch { /* 没图标就留占位 */ }
+  }));
+  renderProjects();
+}
+
 /* 列表与端口雷达一起刷新：两者都依赖 projects / list_ports */
 async function refreshAll() {
   try {
@@ -32,6 +48,7 @@ async function refreshAll() {
   renderTabs();
   renderProjects();
   renderRadar();
+  loadMacIcons();
 }
 
 /* Web 项目靠端口监听判断，Mac 项目只能认自己拉起来的进程组 —— 两条都算 */
@@ -75,14 +92,26 @@ function renderProjects() {
       mac
         ? UI.btn("打包 DMG", { variant: "ghost", act: "build-open", data: { id: p.id } })
         : UI.btn("浏览器", { variant: "ghost", act: "browser", data: { port: p.port } }),
+      mac
+        ? UI.btn("换图标", { variant: "ghost", act: "icon-swap", data: { id: p.id } })
+        : "",
       mac ? "" : UI.btn("发布", { variant: "ghost", act: "publish-open", data: { id: p.id } }),
       UI.btn("编辑", { variant: "ghost", act: "project-edit", data: { id: p.id } }),
       UI.btn("删除", { variant: "ghost", act: "delete-open", data: { id: p.id }, push: true }),
     ].join("");
 
+    // Mac 卡片头加图标缩略图（数据来自 macIcons，换图后实时刷新）
+    const icon = mac
+      ? '<span class="card-icon' + (macIcons.get(p.id) ? "" : " is-empty") +
+        '"' + (macIcons.get(p.id)
+          ? ' style="background-image:url(data:image/png;base64,' + macIcons.get(p.id) + ')"'
+          : "") + "></span>"
+      : "";
+
     return '<div class="card">' +
         '<div class="card-head">' +
           UI.dot(live) +
+          icon +
           '<span class="card-name">' + esc(p.name) + "</span>" +
           (mac ? '<span class="tag">Mac</span>' : "") +
           (p.scaffold ? '<span class="tag">' + esc(p.scaffold) + "</span>" : "") +
@@ -195,6 +224,28 @@ async function submitProject() {
   renderProjects();
   toast("已保存");
 }
+
+/* ============================== 一键换图标（Mac 项目） ============================== */
+on("icon-swap", async el => {
+  const id = el.dataset.id;
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  const path = await invoke("pick_file", {
+    prompt: p.name + " · 选择新图标",
+    defaultPath: p.path,
+    exts: ["png", "jpg", "jpeg", "heic"],
+  });
+  if (!path) return;
+  toast("正在生成图标…");
+  try {
+    const r = await invoke("swap_icon", { id, imagePath: path });
+    macIcons.delete(id);
+    await loadMacIcons();
+    toast(r.hotPatched ? "图标已更新，已热更新已构建的 .app" : "图标已更新，重新打包生效");
+  } catch (e) {
+    toast(String(e));
+  }
+});
 
 /* ============================== 打包 DMG（Mac 项目） ============================== */
 let buildId = "", buildTimer = null, buildT0 = 0, buildDmg = "";

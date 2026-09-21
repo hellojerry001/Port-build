@@ -1,5 +1,6 @@
 mod build;
 mod dialog;
+mod icon;
 mod open;
 mod ports;
 mod projects;
@@ -48,6 +49,9 @@ pub fn run() {
             open::open_url,
             open::show_in_finder,
             dialog::pick_folder,
+            dialog::pick_file,
+            icon::project_icon,
+            icon::swap_icon,
             projects::list_projects,
             projects::save_project,
             projects::delete_project,
