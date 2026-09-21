@@ -1,3 +1,4 @@
+mod appmeta;
 mod build;
 mod dialog;
 mod icon;
@@ -52,6 +53,8 @@ pub fn run() {
             dialog::pick_file,
             icon::project_icon,
             icon::swap_icon,
+            appmeta::app_meta,
+            appmeta::set_app_name,
             projects::list_projects,
             projects::save_project,
             projects::delete_project,

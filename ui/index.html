@@ -168,7 +168,7 @@
 
     <div class="modal-foot">
       <button class="btn is-ghost" data-act="editor-close">取消</button>
-      <button class="btn" data-act="project-save">保存</button>
+      <button class="btn is-primary" data-act="project-save">保存</button>
     </div>
   </div>
 </div>
@@ -202,7 +202,7 @@
     <div class="modal-foot">
       <button class="btn is-ghost" data-act="publish-history">历史记录</button>
       <button class="btn is-ghost" data-act="publish-close">取消</button>
-      <button class="btn" id="pubBtn" data-act="pub-btn">发布</button>
+      <button class="btn is-primary" id="pubBtn" data-act="pub-btn">发布</button>
     </div>
 
     <div class="pub-tip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>（以结果里的倒计时为准）；
@@ -254,14 +254,45 @@
 <div class="overlay" id="buildModal">
   <div class="modal is-wide">
     <h3 class="modal-title">打包 DMG · <span id="bdName"></span></h3>
-    <div class="build-status" id="bdStatus"></div>
-    <pre class="build-log" id="bdLog"></pre>
-    <div class="pub-tip">打包由项目自己的命令驱动（默认 <b>npm run tauri build</b>），产物落在
-      <b>src-tauri/target/release/bundle/dmg/</b>。关掉这个窗口不会中断打包。</div>
+
+    <!-- 配置态：打包前先定图标与应用名。两者都写进项目源码，产物直接带上 -->
+    <div id="bdCfg">
+      <div class="field">
+        <label class="field-label">应用图标</label>
+        <div class="icon-row">
+          <button class="icon-pick" id="bdIcon" data-act="build-pick-icon" title="点击更换图标"></button>
+          <div class="icon-row-tip">
+            <button class="btn is-ghost" data-act="build-pick-icon">选择图片…</button>
+            <div class="field-hint">任意图片，自动裁方并生成 icns 与各尺寸 PNG</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="bdAppName">应用名称</label>
+        <input class="input" id="bdAppName" data-onchange="build-name" placeholder="AppName" autocomplete="off" />
+        <div class="field-hint" id="bdNameHint">写入 tauri.conf.json 的 productName，决定 .app 文件名与 Dock 显示名</div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">应用标识</label>
+        <div class="field-static" id="bdAppId"></div>
+      </div>
+    </div>
+
+    <!-- 打包态 -->
+    <div id="bdRun" hidden>
+      <div class="build-status" id="bdStatus"></div>
+      <pre class="build-log" id="bdLog"></pre>
+      <div class="pub-tip">打包由项目自己的命令驱动（默认 <b>npm run tauri build</b>），产物落在
+        <b>src-tauri/target/release/bundle/dmg/</b>。关掉这个窗口不会中断打包。</div>
+    </div>
+
     <div class="modal-foot">
       <button class="btn is-ghost" id="bdReveal" data-act="build-reveal">在访达中显示</button>
       <button class="btn is-ghost" id="bdCancel" data-act="build-cancel">终止打包</button>
-      <button class="btn" data-act="build-close">关闭</button>
+      <button class="btn is-ghost" id="bdClose" data-act="build-close">关闭</button>
+      <button class="btn is-primary" id="bdStart" data-act="build-start">开始打包</button>
     </div>
   </div>
 </div>

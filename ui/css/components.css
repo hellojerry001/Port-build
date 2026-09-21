@@ -13,7 +13,6 @@
   width: var(--rail-w);
   flex: none;
   background: var(--c-rail);
-  border-right: var(--hairline) solid var(--c-border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -68,7 +67,8 @@
   transform: translateY(-50%);
   background: var(--c-tooltip);
   color: var(--c-text);
-  border: var(--hairline) solid var(--c-border);
+  border: var(--hairline) solid var(--c-border-float);
+  box-shadow: var(--c-shadow-lift);
   font-size: var(--fs-11);
   padding: var(--px-4) var(--px-9);
   border-radius: var(--r-7);
@@ -93,7 +93,8 @@
   min-width: var(--px-90);
   padding: var(--px-4);
   background: var(--c-modal);
-  border: var(--hairline) solid var(--c-border);
+  border: var(--hairline) solid var(--c-border-float);
+  box-shadow: var(--c-shadow-lift);
   border-radius: var(--r-10);
   display: none;
   z-index: var(--z-tip);
@@ -141,16 +142,15 @@
 .theme-opt.is-on .tick { opacity: 1; }
 
 /* ============================== 分类页签 ============================== */
-/* 项目页顶部的「Web / Mac」切换。选中态复用 rail 的指示条语言：底部短横线 */
+/* 项目页顶部的「Web / Mac」切换。选中态是「浮起的药丸」而不是底部短横线：
+   去分割线化之后，页签行没有底线可依附，改用底色表达选中。 */
 .tabs {
   display: flex;
-  gap: var(--px-2);
+  gap: var(--px-4);
   margin-bottom: var(--gap-row);
-  border-bottom: var(--hairline) solid var(--c-border);
 }
 
 .tab {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--px-6);
@@ -159,25 +159,14 @@
   color: var(--c-text-3);
   font-family: inherit;
   font-size: var(--fs-13);
-  padding: var(--px-6) var(--px-12) var(--px-9);
-  border-radius: var(--r-7) var(--r-7) 0 0;
+  padding: var(--px-6) var(--px-12);
+  border-radius: var(--r-8);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .tab:hover { background: var(--c-surface-2); color: var(--c-text-2); }
-.tab.is-on { color: var(--c-text); font-weight: var(--fw-semi); }
-
-.tab.is-on::after {
-  content: "";
-  position: absolute;
-  left: var(--px-12);
-  right: var(--px-12);
-  bottom: calc(var(--px-1) * -1);
-  height: var(--px-2);
-  border-radius: var(--r-2);
-  background: var(--c-indicator);
-}
+.tab.is-on { background: var(--c-surface-4); color: var(--c-text); font-weight: var(--fw-semi); }
 
 /* 页签上的数量角标 */
 .tab-count {
@@ -211,8 +200,8 @@
 .build-log {
   height: var(--build-log-h);
   overflow: auto;
-  background: var(--c-surface-1);
-  border: var(--hairline) solid var(--c-border);
+  background: var(--c-fill-field);
+  border: var(--hairline) solid var(--c-border-field);
   border-radius: var(--r-10);
   padding: var(--px-10) var(--px-12);
   font-family: var(--ff-mono);
@@ -260,13 +249,14 @@
   color: var(--c-text);
 }
 
-/* 主操作 */
+/* 主操作：底色与前景成对取令牌，两套主题各自成立（深色=更亮的灰底，浅色=近黑实底） */
 .btn.is-primary {
-  background: var(--c-surface-7);
+  background: var(--c-primary-bg);
+  color: var(--c-primary-fg);
   font-weight: var(--fw-semi);
 }
 
-.btn.is-primary:hover { background: var(--c-surface-8); }
+.btn.is-primary:hover { background: var(--c-primary-bg-hover); }
 
 /* 危险操作 */
 .btn.is-danger:hover {
@@ -287,8 +277,8 @@
 
 /* ============================== 输入 ============================== */
 .input {
-  background: var(--c-surface-1);
-  border: var(--hairline) solid var(--c-border);
+  background: var(--c-fill-field);
+  border: var(--hairline) solid var(--c-border-field);
   color: var(--c-text);
   border-radius: var(--r-8);
   padding: var(--px-6) var(--px-10);
@@ -347,9 +337,9 @@
 .hint.is-warn { color: var(--c-warn); }
 
 /* ============================== 卡片 ============================== */
+/* 无描边：浅色下靠「白底浮在浅灰应用底上」的色差立层次，深色下靠 --w4 亮度差 */
 .card {
   background: var(--c-surface-1);
-  border: var(--hairline) solid var(--c-border);
   border-radius: var(--r-12);
   padding: var(--px-14) var(--px-16);
   min-width: 0;
@@ -367,7 +357,6 @@
   background-position: center;
   background-repeat: no-repeat;
   flex: none;
-  border: var(--hairline) solid var(--c-border);
 }
 .card-icon.is-empty::after {
   content: "";
@@ -420,30 +409,31 @@
   margin-left: auto;
   color: var(--c-text-2);
   font-size: var(--fs-11);
-  background: var(--c-surface-1);
+  background: var(--c-surface-3);
   padding: var(--px-2) var(--px-8);
   border-radius: var(--r-6);
   flex: none;
 }
 
-/* 脚手架来源标记 */
+/* 脚手架来源标记：填充式徽标，不描边 */
 .tag {
   color: var(--c-text-3);
   font-size: var(--fs-10);
-  border: var(--hairline) solid var(--c-border);
-  padding: var(--px-1) var(--px-6);
+  background: var(--c-surface-3);
+  padding: var(--px-2) var(--px-6);
   border-radius: var(--r-5);
   flex: none;
 }
 
 /* ============================== 表格 ============================== */
-.table { width: 100%; border-collapse: collapse; }
+/* 无行分割线：表头靠小号灰字区分，数据行靠圆角 hover 底色点亮。
+   用 separate + spacing 0 代替 collapse —— 后者不接受圆角。 */
+.table { width: 100%; border-collapse: separate; border-spacing: 0; }
 
 .table th,
 .table td {
   text-align: left;
   padding: var(--px-8) var(--px-12);
-  border-bottom: var(--hairline) solid var(--c-border);
 }
 
 .table th {
@@ -453,7 +443,9 @@
 }
 
 .table td { font-size: var(--fs-12); }
-.table tr:hover td { background: var(--c-surface-1); }
+.table tbody tr:hover td { background: var(--c-surface-3); }
+.table tbody tr:hover td:first-child { border-radius: var(--r-8) 0 0 var(--r-8); }
+.table tbody tr:hover td:last-child { border-radius: 0 var(--r-8) var(--r-8) 0; }
 .table .col-pid { color: var(--c-text-3); }
 .table .col-kill { width: var(--px-90); }
 
@@ -471,7 +463,6 @@
 
 /* ============================== 占位页 ============================== */
 .void-state {
-  border: var(--hairline) solid var(--c-border);
   border-radius: var(--r-12);
   background: var(--c-surface-1);
   padding: var(--px-46) var(--px-20);
@@ -503,7 +494,8 @@
 
 .modal {
   background: var(--c-modal);
-  border: var(--hairline) solid var(--c-border);
+  border: var(--hairline) solid var(--c-border-float);
+  box-shadow: var(--c-shadow-float);
   border-radius: var(--r-14);
   width: var(--modal-w);
   padding: var(--px-20);
@@ -533,6 +525,29 @@
   align-items: center;
 }
 
+/* ============================ 打包弹窗的配置态 ============================ */
+/* 图标行：方形预览（背景图来自 base64）+ 右侧的选择入口 */
+.icon-row { display: flex; align-items: center; gap: var(--gap-inline); }
+.icon-row-tip { min-width: 0; }
+.icon-row-tip .field-hint { margin-top: var(--px-4); }
+
+.icon-pick {
+  width: var(--icon-pick);
+  height: var(--icon-pick);
+  flex: none;
+  padding: 0;
+  border: var(--hairline) solid var(--c-border-field);
+  border-radius: var(--r-10);
+  background-color: var(--c-fill-field);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.icon-pick.is-empty { background-color: var(--c-surface-3); }
+.icon-pick:hover { border-color: var(--c-border-focus); }
+
 /* ============================== 加载指示 ============================== */
 .spinner {
   display: inline-block;
@@ -554,18 +569,16 @@
 }
 
 .tpl-card {
-  border: var(--hairline) solid var(--c-border);
   border-radius: var(--r-10);
   padding: var(--px-13) var(--px-14);
   cursor: pointer;
-  background: var(--c-surface-1);
+  background: var(--c-fill-field);
 }
 
 .tpl-card:hover { background: var(--c-surface-3); }
 
 .tpl-card.is-on {
-  border-color: var(--c-border-strong);
-  background: var(--c-surface-3);
+  background: var(--c-surface-6);
 }
 
 .tpl-name { font-size: var(--fs-13); font-weight: var(--fw-semi); }
@@ -666,11 +679,10 @@
 }
 
 .pl-item {
-  border: var(--hairline) solid var(--c-border);
   border-radius: var(--r-10);
   padding: var(--px-11) var(--px-13);
   margin-bottom: var(--px-8);
-  background: var(--c-surface-1);
+  background: var(--c-fill-field);
 }
 
 .pl-item:last-child { margin-bottom: 0; }
@@ -740,14 +752,13 @@
   align-content: start;
 }
 
-.pl-list.is-page .pl-item { margin-bottom: 0; }
+.pl-list.is-page .pl-item { margin-bottom: 0; background: var(--c-surface-1); }
 .pl-list.is-page .pl-empty { grid-column: 1 / -1; }
 
 /* ============================== 危险操作确认 ============================== */
 .del-box {
-  border: var(--hairline) solid var(--c-border);
   border-radius: var(--r-10);
-  background: var(--c-surface-1);
+  background: var(--c-fill-field);
   padding: var(--px-11) var(--px-13);
 }
 
@@ -799,8 +810,8 @@
   border-radius: var(--r-10);
   font-size: var(--fs-12);
   display: none;
-  /* 用外描边代替 border：白底浮层在浅色主题下需要边界，又不该改变盒模型尺寸 */
-  box-shadow: 0 0 0 var(--hairline) var(--c-toast-ring);
+  /* 浅色主题靠阴影找边界；深色只叠一圈极淡外描边（用 box-shadow 而非 border，不改盒模型尺寸） */
+  box-shadow: var(--c-shadow-float), 0 0 0 var(--hairline) var(--c-toast-ring);
 }
 
 .toast.is-open { display: block; }

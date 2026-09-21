@@ -33,9 +33,7 @@
   --w30:  rgba(255, 255, 255, .30);
   --w32:  rgba(255, 255, 255, .32);
   --w38:  rgba(255, 255, 255, .38);
-  --w42:  rgba(255, 255, 255, .42);
   --w50:  rgba(255, 255, 255, .50);
-  --w78:  rgba(255, 255, 255, .78);
   --w90:  rgba(255, 255, 255, .90);
   --w92:  rgba(255, 255, 255, .92);
 
@@ -67,7 +65,6 @@
   --px-90:  90px;
 
   /* 1.5 圆角阶 */
-  --r-2:   2px;
   --r-5:   5px;
   --r-6:   6px;
   --r-7:   7px;
@@ -113,25 +110,27 @@
   /* 墨阶（对应上面亮度阶的镜像） */
   --bk5:  rgba(0, 0, 0, .045);
   --bk6:  rgba(0, 0, 0, .060);
-  --bk8:  rgba(0, 0, 0, .075);
   --bk10: rgba(0, 0, 0, .095);
   --bk12: rgba(0, 0, 0, .120);
   --bk15: rgba(0, 0, 0, .155);
-  --bk20: rgba(0, 0, 0, .190);
   --bk30: rgba(0, 0, 0, .280);
   --bk35: rgba(0, 0, 0, .340);
   --bk62: rgba(0, 0, 0, .560);
-  --bk70: rgba(0, 0, 0, .640);
   --bk85: rgba(0, 0, 0, .820);
   --bk88: rgba(0, 0, 0, .880);
 
   /* 表面阶 —— 由亮到暗的实体底（浅色下「侧栏」仍比应用底沉一档，层级关系不变） */
-  --lt-app:     #f4f5f7;
-  --lt-rail:    #eaebee;
+  --lt-app:     #f3f4f5;              /* 应用底（对齐参考稿实测值） */
+  --lt-rail:    #eaeaed;              /* 侧栏：比应用底沉一档，靠色差与内容区分开，不用描边 */
   --lt-modal:   #ffffff;
   --lt-tip:     #ffffff;
   --lt-control: #6b7280;              /* 原生控件着色（复选框） */
   --lt-scrim:   rgba(0, 0, 0, .32);
+  --lt-primary: #161616;              /* 主按钮 / 强选中：浅色下用近黑，与参考稿一致 */
+
+  /* 浮层阴影 —— 浅色主题的层级表达：色差为主，阴影只在「浮起」的层上做补强 */
+  --sh-lift:  0 4px 14px rgba(0, 0, 0, .10), 0 1px 3px rgba(0, 0, 0, .05);
+  --sh-float: 0 10px 30px rgba(0, 0, 0, .13), 0 2px 6px rgba(0, 0, 0, .06);
 
   /* 功能色 —— 浅色底上必须压深才够对比度，不能直接沿用深色那套亮色 */
   --ok-lt:        rgba(20, 128, 62, .95);
@@ -159,14 +158,21 @@
   --c-surface-5:  var(--w12);   /* 浮层：toast */
   --c-surface-6:  var(--w14);   /* 强调 hover：按钮 / 长期有效徽标 */
   --c-surface-7:  var(--w16);   /* chip hover / 主按钮 */
-  --c-surface-8:  var(--w24);   /* 主按钮 hover / chip 选中 */
 
-  /* 2.2 描边 */
-  --c-border:        var(--w9);   /* 分隔线与卡片描边 */
+  /* 2.2 描边 —— 分成三种语义，因为「分割线」和「控件边界」在浅色主题里的命运不同：
+       结构分割线在浅色下整体退场（层级改由色差表达），控件边界改由填充色承担，
+       只有真正的浮层还留着边界（浅色下再换成一圈柔和阴影）。
+       深色主题三者的值目前一致，留三个名字是为了让浅色能单独处置、也为了表达意图。 */
+  --c-border-field:  var(--w9);   /* 控件边界：输入框 / 日志块 / 图标选择框 */
+  --c-border-float:  var(--w9);   /* 浮层边界：弹窗 / 菜单 / 气泡 */
   --c-border-focus:  var(--w30);  /* 输入框聚焦 */
-  --c-border-strong: var(--w42);  /* 卡片选中 */
   --c-ring:          var(--w38);  /* 键盘焦点环 */
   --c-toast-ring:    transparent; /* toast 描边：深色靠亮度差已足够，浅色才需要 */
+
+  /* 2.2b 浮起与填充 */
+  --c-fill-field:    var(--c-surface-1); /* 控件填充（浅色下为浅灰底，替代描边） */
+  --c-shadow-lift:   none;               /* 静置浮起：菜单 / 气泡 */
+  --c-shadow-float:  none;               /* 浮层：弹窗 / toast */
 
   /* 2.3 文字 */
   --c-text:     var(--w92);   /* 主文字 */
@@ -175,11 +181,15 @@
   --c-text-inv: var(--w0);    /* 强调底上的反白 */
 
   /* 2.4 灰阶交互件（刻意不用彩色，靠透明度区分） */
-  --c-indicator:     var(--w78);  /* tab 选中指示条 */
   --c-control:       var(--k400); /* 原生控件着色（复选框） */
   --c-spinner-track: var(--w25);
   --c-spinner-head:  var(--w90);
   --c-accent-bg:     var(--w24);  /* 强选中底（chip 选中）。浅色下必须够深才配得上反白字 */
+
+  /* 2.4b 主操作按钮：底色与前景成对声明，两套主题各自成立 */
+  --c-primary-bg:       var(--w16);
+  --c-primary-bg-hover: var(--w24);
+  --c-primary-fg:       var(--c-text);
 
   /* 2.5 状态色 */
   --c-ok:          var(--ok900);
@@ -207,6 +217,7 @@
   --modal-w-publish: 470px;
   --list-max-h:      390px;
   --build-log-h:     240px;   /* 打包日志可视高度 */
+  --icon-pick:       48px;    /* 打包配置态的应用图标预览 */
   --grid-min:        320px;   /* 项目卡片 */
   --grid-min-page:   340px;   /* 发布记录页两列起 */
   --hairline:        var(--px-1);
@@ -233,18 +244,24 @@
   --c-surface-1:  var(--lt-tip);   /* 卡片 / 输入框 / 列表项：白，浮在浅灰应用底上 */
   --c-surface-2:  var(--bk5);      /* 轻 hover：rail 图标 */
   --c-surface-3:  var(--bk6);      /* hover：卡片内按钮 / chip / 徽标 */
-  --c-surface-4:  var(--bk8);      /* 选中：rail 图标 */
+  --c-surface-4:  var(--lt-tip);   /* 选中：白药丸，在灰底侧栏上「浮起」而非「凹陷」 */
   --c-surface-5:  var(--lt-tip);   /* toast：白底浮层，靠 --c-toast-ring 找边界 */
   --c-surface-6:  var(--bk10);     /* 强调 hover：按钮 */
-  --c-surface-7:  var(--bk15);     /* 主按钮：要比普通按钮一眼看出更实 */
-  --c-surface-8:  var(--bk20);     /* 主按钮 hover */
+  --c-surface-7:  var(--bk15);     /* chip hover */
 
-  /* 描边 */
-  --c-border:        var(--bk10);
+  /* 描边 —— 浅色主题「去分割线化」的核心：
+     结构与控件的描边全部退场（布局不变，只是颜色透明），层级交给色差与填充色；
+     只有浮层还靠 --c-shadow-float 找边界。 */
+  --c-border-field:  transparent;
+  --c-border-float:  transparent;
   --c-border-focus:  var(--bk30);
-  --c-border-strong: var(--bk35);
   --c-ring:          var(--bk30);
   --c-toast-ring:    var(--bk10);
+
+  /* 浮起与填充 */
+  --c-fill-field:    var(--bk5);   /* 控件底：浅灰填充，替代输入框 / 日志块的描边 */
+  --c-shadow-lift:   var(--sh-lift);
+  --c-shadow-float:  var(--sh-float);
 
   /* 文字 */
   --c-text:     var(--bk88);
@@ -253,11 +270,15 @@
   --c-text-inv: var(--w0);         /* 强调底上的反白（两套主题一致） */
 
   /* 灰阶交互件 */
-  --c-indicator:     var(--bk70);
   --c-control:       var(--lt-control);
   --c-spinner-track: var(--bk12);
   --c-spinner-head:  var(--bk62);
   --c-accent-bg:     var(--bk85);
+
+  /* 主操作按钮：近黑实底 + 反白字 */
+  --c-primary-bg:       var(--lt-primary);
+  --c-primary-bg-hover: var(--bk85);
+  --c-primary-fg:       var(--c-text-inv);
 
   /* 状态色 */
   --c-ok:          var(--ok-lt);

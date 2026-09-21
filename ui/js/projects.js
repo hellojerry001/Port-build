@@ -92,9 +92,6 @@ function renderProjects() {
       mac
         ? UI.btn("打包 DMG", { variant: "ghost", act: "build-open", data: { id: p.id } })
         : UI.btn("浏览器", { variant: "ghost", act: "browser", data: { port: p.port } }),
-      mac
-        ? UI.btn("换图标", { variant: "ghost", act: "icon-swap", data: { id: p.id } })
-        : "",
       mac ? "" : UI.btn("发布", { variant: "ghost", act: "publish-open", data: { id: p.id } }),
       UI.btn("编辑", { variant: "ghost", act: "project-edit", data: { id: p.id } }),
       UI.btn("删除", { variant: "ghost", act: "delete-open", data: { id: p.id }, push: true }),
@@ -225,30 +222,48 @@ async function submitProject() {
   toast("已保存");
 }
 
-/* ============================== 一键换图标（Mac 项目） ============================== */
-on("icon-swap", async el => {
-  const id = el.dataset.id;
-  const p = projects.find(x => x.id === id);
-  if (!p) return;
-  const path = await invoke("pick_file", {
-    prompt: p.name + " · 选择新图标",
-    defaultPath: p.path,
-    exts: ["png", "jpg", "jpeg", "heic"],
-  });
-  if (!path) return;
-  toast("正在生成图标…");
-  try {
-    const r = await invoke("swap_icon", { id, imagePath: path });
-    macIcons.delete(id);
-    await loadMacIcons();
-    toast(r.hotPatched ? "图标已更新，已热更新已构建的 .app" : "图标已更新，重新打包生效");
-  } catch (e) {
-    toast(String(e));
-  }
-});
-
 /* ============================== 打包 DMG（Mac 项目） ============================== */
+/* 弹窗两态：配置态（图标 + 应用名）→ 打包态（状态 + 日志）。
+   图标与应用名的改动即时写进项目源码，打包产物直接带上——
+   不再为改图标单开一个卡片入口。 */
 let buildId = "", buildTimer = null, buildT0 = 0, buildDmg = "";
+let bdIcon = "", bdName = "";
+
+/* 把当前图标画进配置态的方形预览（base64 来自 project_icon / app_meta） */
+function paintBuildIcon() {
+  const el = $("bdIcon");
+  el.style.backgroundImage = bdIcon ? "url(data:image/png;base64," + bdIcon + ")" : "";
+  el.classList.toggle("is-empty", !bdIcon);
+}
+
+/* 配置态：底部只留「取消」「开始打包」 */
+function showBuildCfg() {
+  $("bdCfg").hidden = false;
+  $("bdRun").hidden = true;
+  $("bdReveal").hidden = true;
+  $("bdCancel").hidden = true;
+  $("bdStart").hidden = false;
+  $("bdClose").hidden = false;
+  $("bdClose").textContent = "取消";
+}
+
+/* 打包态：底部换成「在访达中显示 / 终止打包 / 关闭」 */
+function showBuildRun() {
+  $("bdCfg").hidden = true;
+  $("bdRun").hidden = false;
+  $("bdReveal").hidden = !buildDmg;
+  $("bdCancel").hidden = false;
+  $("bdCancel").disabled = false;
+  $("bdStart").hidden = true;
+  $("bdClose").hidden = false;
+  $("bdClose").textContent = "关闭";
+}
+
+function startTick() {
+  clearInterval(buildTimer);
+  buildTimer = setInterval(tickBuild, 1500);
+  tickBuild();
+}
 
 async function openBuild(id) {
   const p = projects.find(x => x.id === id);
@@ -258,27 +273,119 @@ async function openBuild(id) {
   buildDmg = "";
   buildT0 = Date.now();
   $("bdName").textContent = p.name;
-  $("bdStatus").className = "build-status";
-  $("bdStatus").innerHTML = UI.spinner("正在启动打包…");
-  $("bdLog").textContent = "准备中…";
-  $("bdReveal").style.display = "none";
-  $("bdCancel").disabled = false;
+
+  // 上次关了窗口但打包还在跑：直接进打包态接着看
+  let running = false;
+  try { running = (await invoke("build_status", { id })).running; } catch (_) { /* 没在打包 */ }
+  if (running) {
+    $("bdStatus").className = "build-status";
+    showBuildRun();
+    openModal("buildModal");
+    startTick();
+    return;
+  }
+
+  // 配置态：先预填项目当前的应用元信息（图标先用卡片缓存，回来再校准）
+  bdIcon = macIcons.get(id) || "";
+  bdName = "";
+  $("bdAppName").value = "";
+  $("bdAppId").textContent = "读取中…";
+  $("bdNameHint").className = "field-hint";
+  $("bdNameHint").textContent =
+    "写入 tauri.conf.json 的 productName，决定 .app 文件名与 Dock 显示名";
+  paintBuildIcon();
+  showBuildCfg();
   openModal("buildModal");
 
   try {
-    await invoke("build_dmg", { id });
+    const m = await invoke("app_meta", { id });
+    if (buildId !== id) return;          // 期间用户切到别的项目了
+    bdIcon = m.icon || bdIcon;
+    bdName = m.productName || "";
+    $("bdAppName").value = bdName;
+    $("bdAppId").textContent = m.identifier || "（未配置 identifier）";
+    paintBuildIcon();
+  } catch (e) {
+    $("bdAppId").textContent = "读取失败：" + String(e);
+  }
+}
+
+/* 「开始打包」：名称若改过先落盘，再起打包进程并切到打包态 */
+async function startBuild() {
+  if (!buildId) return;
+  const name = $("bdAppName").value.trim();
+  if (name && name !== bdName) {
+    try {
+      await invoke("set_app_name", { id: buildId, name });
+      bdName = name;
+    } catch (e) {
+      toast(String(e));
+      return;                            // 名字没写进去就不打包，免得产物名与预期不符
+    }
+  }
+
+  $("bdStatus").className = "build-status";
+  $("bdStatus").innerHTML = UI.spinner("正在启动打包…");
+  $("bdLog").textContent = "准备中…";
+  showBuildRun();
+
+  try {
+    await invoke("build_dmg", { id: buildId });
   } catch (e) {
     // 已经在打包（比如上次关了窗口又点开）不算失败，继续跟着看就行
     if (!String(e).includes("正在打包")) {
+      $("bdStatus").className = "build-status is-bad";
       $("bdStatus").textContent = String(e);
       return;
     }
   }
-
-  clearInterval(buildTimer);
-  buildTimer = setInterval(tickBuild, 1500);
-  tickBuild();
+  buildT0 = Date.now();
+  startTick();
 }
+
+/* 应用名即时保存：输入框失焦或回车就写盘，不丢改动 */
+onChange("build-name", async el => {
+  if (!buildId) return;
+  const name = el.value.trim();
+  if (!name) { el.value = bdName; return; }
+  if (name === bdName) return;
+  try {
+    toast(await invoke("set_app_name", { id: buildId, name }));
+    bdName = name;
+    el.value = name;
+  } catch (e) {
+    toast(String(e));
+    el.value = bdName;                   // 回滚，别让界面显示一个没落盘的名字
+  }
+});
+
+/* 配置态换图标：选图 → 生成整套图标（含热更新已构建的 .app）→ 刷新两处预览 */
+on("build-pick-icon", async () => {
+  if (!buildId) return;
+  const p = projects.find(x => x.id === buildId);
+  let path;
+  try {
+    path = await invoke("pick_file", {
+      prompt: (p ? p.name : "项目") + " · 选择应用图标",
+      defaultPath: p ? p.path : "",
+      exts: ["png", "jpg", "jpeg", "heic"],
+    });
+  } catch (e) { toast(String(e)); return; }
+  if (!path) return;
+
+  toast("正在生成图标…");
+  try {
+    const r = await invoke("swap_icon", { id: buildId, imagePath: path });
+    const b64 = await invoke("project_icon", { id: buildId });
+    bdIcon = b64 || "";
+    paintBuildIcon();
+    macIcons.delete(buildId);
+    await loadMacIcons();                // 卡片头缩略图跟着更新
+    toast(r.hotPatched ? "图标已更新，已热更新已构建的 .app" : "图标已更新，重新打包生效");
+  } catch (e) {
+    toast(String(e));
+  }
+});
 
 async function tickBuild() {
   if (!buildId) return;
@@ -342,6 +449,7 @@ async function revealBuild() {
 }
 
 on("build-open",   el => openBuild(el.dataset.id));
+on("build-start",  () => startBuild());
 on("build-close",  () => closeBuild());
 on("build-cancel", () => cancelBuild());
 on("build-reveal", () => revealBuild());

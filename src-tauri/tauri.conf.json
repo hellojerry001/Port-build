@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PortButler",
+  "productName": "VibeButler",
   "version": "0.3.0",
   "identifier": "com.jerry.portbutler",
   "build": { "frontendDist": "../ui" },

@@ -47,6 +47,10 @@ button:focus-visible {
 .span-all { grid-column: 1 / -1; }   /* 栅格子项通栏 */
 .push-end { margin-left: auto; }     /* 把元素推到行尾 */
 
+/* hidden 属性只是 UA 样式里的 display:none，任何作者样式一旦给该元素写上
+   display（如 flex/inline-flex）就会把它顶掉。兜一条，让 hidden 永远算数。 */
+[hidden] { display: none !important; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
