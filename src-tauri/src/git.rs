@@ -6,8 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::projects;
 
@@ -75,6 +76,10 @@ pub struct GitSettings {
     pub auto_gitignore: bool,
     /// 初始化项目时自动建一次提交
     pub auto_first_commit: bool,
+    /// GitHub OAuth App 的 Client ID（Device Flow 用，非机密，可存设置）
+    pub github_client_id: String,
+    /// 已绑定的 GitHub 账号（只存用户名，绝不存 token）
+    pub github_login: String,
 }
 
 impl Default for GitSettings {
@@ -85,6 +90,8 @@ impl Default for GitSettings {
             default_branch: "main".into(),
             auto_gitignore: true,
             auto_first_commit: true,
+            github_client_id: String::new(),
+            github_login: String::new(),
         }
     }
 }
@@ -178,6 +185,8 @@ pub struct GitStatus {
     pub helper: String,
     pub has_github_cred: bool,
     pub gh_cli: bool,
+    /// 已绑定的 GitHub 账号（仅用户名）；空 = 未绑定或钥匙串凭证丢失
+    pub github_login: String,
     pub checks: Vec<EnvCheck>,
     pub settings: GitSettings,
 }
@@ -271,6 +280,7 @@ pub fn git_status() -> GitStatus {
         helper,
         has_github_cred: cred,
         gh_cli,
+        github_login: if cred { settings.github_login.clone() } else { String::new() },
         checks,
         settings,
     }
@@ -479,10 +489,18 @@ pub fn git_commit_push(path: String, message: String) -> Result<PushOutcome, Str
 #[tauri::command]
 pub fn save_git_settings(settings: GitSettings) -> Result<GitSettings, String> {
     let s = settings.sanitized()?;
+    // 只更新本页那几个字段；github_client_id / github_login 由专门命令维护，
+    // 这里必须保留，否则每次点「保存设置」都会把它们清空掉。
+    let mut existing = load_settings();
+    existing.name = s.name;
+    existing.email = s.email;
+    existing.default_branch = s.default_branch;
+    existing.auto_gitignore = s.auto_gitignore;
+    existing.auto_first_commit = s.auto_first_commit;
     let path = settings_path();
-    let text = serde_json::to_string_pretty(&s).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&existing).map_err(|e| e.to_string())?;
     fs::write(&path, text).map_err(|e| format!("写入设置失败：{e}"))?;
-    Ok(s)
+    Ok(existing)
 }
 
 /// 把身份写进 **git 全局配置**（`~/.gitconfig`），这样命令行里 `git commit`
@@ -520,6 +538,366 @@ pub fn token_help_url() -> String {
     "https://github.com/settings/tokens".into()
 }
 
+/* ============================== GitHub 账号绑定（OAuth Device Flow / gh CLI） ============================== */
+
+/// PortButler 官方注册的 OAuth App 的 Client ID。
+///
+/// 有它，用户点「绑定」就能直接用，**完全不需要自己申请 Client ID**。
+/// Device Flow 没有 client_secret，client_id 本来就是公开标识符（gh CLI 自己的
+/// client_id 就公开在源码里），写进二进制不会泄露任何凭据 —— 授权仍必须用户
+/// 本人在浏览器点确认。
+///
+/// TODO: 填一次即可（github.com/settings/developers → New OAuth App → 勾 Enable device flow）。
+/// 留空时前端会退回让用户自己填（见 GhCliStatus.can_device_flow）。
+const BUILTIN_CLIENT_ID: &str = "";
+
+/// 决定这次授权用哪个 Client ID：用户自己填的优先，没填就用内置的。
+fn resolve_client_id(given: &str) -> String {
+    let g = given.trim();
+    if g.is_empty() {
+        BUILTIN_CLIENT_ID.trim().to_string()
+    } else {
+        g.to_string()
+    }
+}
+
+/// Device Flow 申请到的授权码。前端把它显示给用户去浏览器输入。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhDeviceCode {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+    pub interval: u64,
+}
+
+/// 轮询结果。status: pending | authorized | expired | denied。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhPollResult {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// 跑一条 HTTP 请求，返回 (HTTP 状态码, 响应体)。
+///
+/// 故意**不**把非 200 当成错误 —— GitHub 的 Device Flow 在 pending / denied /
+/// expired 时也返回 200 + 一个带 `error` 字段的 JSON，真正的状态得看 body。
+/// 用 curl（而非引入 reqwest），和本文件一贯的「只 spawn 系统命令」风格一致。
+fn curl_json(url: &str, method: &str, body: Option<&serde_json::Value>) -> (i32, String) {
+    let mut c = Command::new("/usr/bin/curl");
+    c.args([
+        "-sS", "-L", "-X", method, url,
+        "-H", "Accept: application/json",
+        "-H", "Content-Type: application/json",
+    ]);
+    if let Some(b) = body {
+        if let Ok(j) = serde_json::to_string(b) {
+            c.arg("--data").arg(j);
+        }
+    }
+    match c.output() {
+        Ok(o) => (
+            o.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&o.stdout).to_string(),
+        ),
+        Err(e) => (-1, format!("{{\"error\":\"curl 调用失败：{e}\"}}")),
+    }
+}
+
+/// 把 OAuth token 存进系统钥匙串，让 git（osxkeychain）推送时自动取用。
+///
+/// 账号固定用 `x-access-token` —— 这是 GitHub 认 OAuth/App token 的用户名，
+/// 跟 `gh` CLI 的行为一致。token 只在绑定这一刻经过 App 内存，进钥匙串后不落任何文件。
+fn store_gh_token(token: &str) -> Result<(), String> {
+    // 先清掉旧的（可能换账号）
+    let _ = Command::new("/usr/bin/security")
+        .args(["delete-internet-password", "-s", "github.com"])
+        .output();
+    let out = Command::new("/usr/bin/security")
+        .args([
+            "add-internet-password",
+            "-s", "github.com",
+            "-a", "x-access-token",
+            "-w", token,
+            "-T", "/usr/bin/git",
+            "-T", "/usr/bin/security",
+        ])
+        .output()
+        .map_err(|e| format!("写入钥匙串失败：{e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "写入钥匙串失败：{}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
+fn delete_gh_token() {
+    let _ = Command::new("/usr/bin/security")
+        .args(["delete-internet-password", "-s", "github.com"])
+        .output();
+}
+
+/// 用 Bearer token 拉 `api.github.com/user`，取回登录名。
+fn gh_login_of(token: &str) -> Result<String, String> {
+    let out = Command::new("/usr/bin/curl")
+        .args([
+            "-sS", "-L", "-X", "GET", "https://api.github.com/user",
+            "-H", "Accept: application/json",
+            "-H", &format!("Authorization: Bearer {token}"),
+        ])
+        .output()
+        .map_err(|e| format!("查询 GitHub 用户失败：{e}"))?;
+    let resp = String::from_utf8_lossy(&out.stdout).to_string();
+    let v: serde_json::Value = serde_json::from_str(&resp)
+        .map_err(|e| format!("解析 GitHub 用户响应失败：{e}"))?;
+    v.get("login")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "GitHub 用户响应缺少 login 字段".into())
+}
+
+/// 把设置结构体落盘（保留所有字段，含 github_*）。
+fn save_settings_struct(s: &GitSettings) -> Result<(), String> {
+    let path = settings_path();
+    let text = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
+    fs::write(&path, text).map_err(|e| format!("写入设置失败：{e}"))?;
+    Ok(())
+}
+
+/// 申请设备授权码。前端拿到后展示 user_code + verification_uri 给用户。
+#[tauri::command]
+pub fn gh_device_code(client_id: String, scope: Option<String>) -> Result<GhDeviceCode, String> {
+    let client_id = resolve_client_id(&client_id);
+    if client_id.is_empty() {
+        return Err("没有可用的 Client ID：本应用未内置，请先在设置里填写".into());
+    }
+    let scope = scope.unwrap_or_else(|| "repo".into());
+    let body = serde_json::json!({ "client_id": client_id, "scope": scope });
+    let (_, resp) = curl_json("https://github.com/login/device/code", "POST", Some(&body));
+    let v: serde_json::Value = serde_json::from_str(&resp)
+        .map_err(|e| format!("解析 GitHub 响应失败：{e}"))?;
+    if let Some(err) = v.get("error").and_then(|x| x.as_str()) {
+        let desc = v
+            .get("error_description")
+            .and_then(|x| x.as_str())
+            .unwrap_or(err);
+        return Err(format!("GitHub 返回错误：{desc}"));
+    }
+    Ok(GhDeviceCode {
+        device_code: v["device_code"].as_str().unwrap_or_default().to_string(),
+        user_code: v["user_code"].as_str().unwrap_or_default().to_string(),
+        verification_uri: v["verification_uri"].as_str().unwrap_or_default().to_string(),
+        expires_in: v["expires_in"].as_u64().unwrap_or(900),
+        interval: v["interval"].as_u64().unwrap_or(5),
+    })
+}
+
+/// 轮询授权结果。前端按返回的 interval 反复调用，直到 status 不再是 pending。
+#[tauri::command]
+pub fn gh_device_poll(client_id: String, device_code: String) -> Result<GhPollResult, String> {
+    let client_id = resolve_client_id(&client_id);
+    let body = serde_json::json!({
+        "client_id": client_id,
+        "device_code": device_code,
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
+    });
+    let (_, resp) = curl_json(
+        "https://github.com/login/oauth/access_token",
+        "POST",
+        Some(&body),
+    );
+    let v: serde_json::Value = serde_json::from_str(&resp)
+        .map_err(|e| format!("解析 GitHub 响应失败：{e}"))?;
+
+    if let Some(tok) = v.get("access_token").and_then(|x| x.as_str()) {
+        // 成功：取用户名并存钥匙串，之后 git 推送自动复用，无需再动 UI
+        let login = gh_login_of(tok)?;
+        store_gh_token(tok)?;
+        let mut s = load_settings();
+        s.github_login = login.clone();
+        save_settings_struct(&s)?;
+        return Ok(GhPollResult {
+            status: "authorized".into(),
+            login: Some(login),
+            error: None,
+        });
+    }
+    if let Some(err) = v.get("error").and_then(|x| x.as_str()) {
+        return match err {
+            "authorization_pending" | "slow_down" => Ok(GhPollResult {
+                status: "pending".into(),
+                login: None,
+                error: None,
+            }),
+            "expired_token" => Ok(GhPollResult {
+                status: "expired".into(),
+                login: None,
+                error: Some("授权码已过期，请重新获取".into()),
+            }),
+            "access_denied" => Ok(GhPollResult {
+                status: "denied".into(),
+                login: None,
+                error: Some("你已拒绝授权".into()),
+            }),
+            other => Err(format!("GitHub 返回未知错误：{other}")),
+        };
+    }
+    Err(format!("GitHub 响应异常：{resp}"))
+}
+
+/// 当前已绑定的账号；钥匙串凭证丢了就清掉残留用户名并返回 None。
+#[tauri::command]
+pub fn gh_account() -> Option<String> {
+    let s = load_settings();
+    if s.github_login.is_empty() {
+        return None;
+    }
+    if !has_github_cred() {
+        let mut s = s;
+        s.github_login = String::new();
+        let _ = save_settings_struct(&s);
+        return None;
+    }
+    Some(s.github_login)
+}
+
+/// 解绑：删钥匙串凭证 + 清设置里的用户名。项目文件原样保留（与 Lovable 行为一致）。
+#[tauri::command]
+pub fn gh_unbind() -> Result<(), String> {
+    delete_gh_token();
+    let mut s = load_settings();
+    s.github_login = String::new();
+    save_settings_struct(&s)?;
+    Ok(())
+}
+
+/// 持久化 Client ID（OAuth App 标识，非机密）。
+#[tauri::command]
+pub fn save_gh_client_id(client_id: String) -> Result<(), String> {
+    let mut s = load_settings();
+    s.github_client_id = client_id.trim().to_string();
+    save_settings_struct(&s)?;
+    Ok(())
+}
+
+/// 向 credential helper 要一条现成凭证，返回 `(用户名, 密码/令牌)`。
+///
+/// 走 `git credential fill` 而不是直接读钥匙串 —— 尊重用户配的 helper
+/// （osxkeychain / gh / 别的都行），也免得我们自己去碰系统钥匙串的授权框。
+fn git_credential_fill(host: &str) -> Option<(String, String)> {
+    let mut child = Command::new(git_bin())
+        .args(["credential", "fill"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .ok()?;
+    {
+        let stdin = child.stdin.as_mut()?;
+        write!(stdin, "protocol=https\nhost={host}\n\n").ok()?;
+    }
+    let out = child.wait_with_output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let mut user = String::new();
+    let mut pass = String::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        if let Some(v) = line.strip_prefix("username=") {
+            user = v.to_string();
+        } else if let Some(v) = line.strip_prefix("password=") {
+            pass = v.to_string();
+        }
+    }
+    if user.is_empty() || pass.is_empty() {
+        None
+    } else {
+        Some((user, pass))
+    }
+}
+
+/// 认领本机已有的推送凭证：钥匙串里早就有一份能用的（多半是以前某次 push 留下的），
+/// 只是我们没记下它属于谁。这里拿它去问一次 GitHub，把登录名补进设置。
+///
+/// 注意：**不动钥匙串** —— 只记名，不替换。这样老用户不会有「绑定反而换掉好凭证」的风险。
+#[tauri::command]
+pub fn gh_claim_existing() -> Result<String, String> {
+    let (_, pass) = git_credential_fill("github.com").ok_or_else(|| {
+        "本机没找到可复用的 github.com 凭证，请改用「绑定账号」".to_string()
+    })?;
+    let login = gh_login_of(&pass).map_err(|e| {
+        format!("{e}。这份凭证可能不是能调 API 的令牌，请改用「绑定账号」重新授权")
+    })?;
+    let mut s = load_settings();
+    s.github_login = login.clone();
+    save_settings_struct(&s)?;
+    Ok(login)
+}
+
+/// gh CLI 的可用状态。前端据此决定给哪条绑定路径：
+/// 已登录 → 一键绑定（不开浏览器）；没装 → 只能走浏览器授权。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhCliStatus {
+    pub installed: bool,
+    pub logged_in: bool,
+    /// 有没有可用的 Client ID（内置的或用户自填的）—— 决定浏览器授权这条路走不走得通
+    pub can_device_flow: bool,
+}
+
+fn gh_bin() -> Option<&'static str> {
+    GH_CANDIDATES.iter().copied().find(|p| Path::new(p).is_file())
+}
+
+/// 用 gh 现有的登录态绑定账号：取 token → 存钥匙串 → 落用户名。
+/// 用户已经在终端 `gh auth login` 过的话，这里是真正的一键、连浏览器都不用开。
+#[tauri::command]
+pub fn gh_bind_cli() -> Result<String, String> {
+    let bin = gh_bin()
+        .ok_or_else(|| "没检测到 gh CLI。可以改用浏览器授权，或先装一个：brew install gh".to_string())?;
+    let out = Command::new(bin)
+        .args(["auth", "token"])
+        .output()
+        .map_err(|e| format!("读取 gh 登录态失败：{e}"))?;
+    if !out.status.success() {
+        return Err("gh 还没登录。先在终端跑一次：gh auth login".into());
+    }
+    let token = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if token.is_empty() {
+        return Err("gh 没返回 token，先在终端跑一次：gh auth login".into());
+    }
+    let login = gh_login_of(&token)?;
+    store_gh_token(&token)?;
+    let mut s = load_settings();
+    s.github_login = login.clone();
+    save_settings_struct(&s)?;
+    Ok(login)
+}
+
+#[tauri::command]
+pub fn gh_cli_status() -> GhCliStatus {
+    let installed = gh_bin().is_some();
+    let mut logged_in = false;
+    if let Some(bin) = gh_bin() {
+        if let Ok(o) = Command::new(bin).args(["auth", "token"]).output() {
+            logged_in = o.status.success()
+                && !String::from_utf8_lossy(&o.stdout).trim().is_empty();
+        }
+    }
+    let saved = load_settings().github_client_id.trim().to_string();
+    GhCliStatus {
+        installed,
+        logged_in,
+        can_device_flow: !resolve_client_id("").is_empty() || !saved.is_empty(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -547,6 +925,22 @@ mod tests {
         assert!(!is_valid_branch("/x"));
         assert!(!is_valid_branch("x/"));
         assert!(!is_valid_branch("a~1"));
+    }
+
+    #[test]
+    fn gh_device_code_rejects_only_when_no_client_id_at_all() {
+        // 不发网络：没有任何可用 client_id（内置为空 + 入参为空）时才报错；
+        // 一旦内置了 Client ID，空入参应当被内置值顶上而不是报错。
+        let no_id_available = BUILTIN_CLIENT_ID.trim().is_empty();
+        assert_eq!(gh_device_code(String::new(), None).is_err(), no_id_available);
+    }
+
+    #[test]
+    fn client_id_falls_back_to_builtin() {
+        // 用户没填 → 用内置的；用户填了 → 用用户的（覆盖内置）
+        assert_eq!(resolve_client_id(""), BUILTIN_CLIENT_ID.trim());
+        assert_eq!(resolve_client_id("  "), BUILTIN_CLIENT_ID.trim());
+        assert_eq!(resolve_client_id(" mine_id "), "mine_id");
     }
 
     #[test]

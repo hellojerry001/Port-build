@@ -73,6 +73,37 @@
   <!-- GitHub 同步：这一页是「项目一键提交 GitHub」的前置 ——
        先把 git 环境与提交身份确认好，真到提交那一步就不该再让用户填任何东西 -->
   <section class="page" id="page-settings">
+    <!-- GitHub 账号放第一张卡：没绑账号，后面环境/身份配得再好也推不了 -->
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">GitHub 账号</div>
+        <div class="set-note">已装 gh 且登录过 → 一键绑定；否则走浏览器授权，不用复制令牌</div>
+      </div>
+      <div class="set-body">
+        <div class="gh-account" id="ghAccountBody"></div>
+
+        <!-- 高级项：默认用 App 内置的 Client ID，普通用户永远不用碰 -->
+        <details class="gh-adv">
+          <summary class="gh-adv-sum">高级：用自己的 OAuth App</summary>
+          <div class="gh-adv-body">
+            <div class="field-row">
+              <div class="field is-grow">
+                <label class="field-label" for="ghClientId">OAuth App Client ID</label>
+                <input class="input" type="text" id="ghClientId"
+                       placeholder="留空则用 App 内置的 Client ID"
+                       autocomplete="off" spellcheck="false" />
+              </div>
+              <button class="btn is-ghost" data-act="gh-save-id">保存</button>
+            </div>
+            <div class="field-hint">
+              只有自行编译、想换成自己的 OAuth App 时才需要填。
+              <a href="https://github.com/settings/developers" target="_blank" rel="noopener">去创建 →</a>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
     <div class="set-card">
       <div class="set-head">
         <div class="set-title">GitHub 同步</div>
@@ -163,18 +194,6 @@
         </thead>
         <tbody id="gsRepoBody"></tbody>
       </table>
-    </div>
-
-    <div class="set-card">
-      <div class="set-link" role="button" tabindex="0" data-act="gs-token">
-        <div class="set-main">
-          <div class="set-row-label">GitHub 访问令牌</div>
-          <div class="set-row-note" id="gsTokenNote">推送仓库要凭证：在 GitHub 生成令牌后，第一次推送时交给钥匙串保存即可</div>
-        </div>
-        <svg class="about-arrow" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M18 5a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V8.414l-9.95 9.95a1 1 0 0 1-1.414-1.414L15.586 7H10a1 1 0 1 1 0-2h8Z"/>
-        </svg>
-      </div>
     </div>
   </section>
 
@@ -495,6 +514,18 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- GitHub 账号绑定弹窗（OAuth Device Flow） -->
+<div class="overlay" id="ghBindModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">绑定 GitHub 账号</h3>
+      <button class="icon-btn" data-act="gh-bind-close" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="ghBindBody"></div>
+    <div class="modal-foot" id="ghBindFoot"></div>
+  </div>
+</div>
 
 <!-- 主题切换浮层（内容由 rail.js 渲染） -->
 <div class="theme-menu" id="themeMenu"></div>

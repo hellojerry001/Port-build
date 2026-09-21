@@ -89,7 +89,15 @@ pub fn run() {
             git::git_commit_push,
             git::save_git_settings,
             git::apply_git_identity,
-            git::token_help_url
+            git::token_help_url,
+            git::gh_device_code,
+            git::gh_device_poll,
+            git::gh_account,
+            git::gh_unbind,
+            git::save_gh_client_id,
+            git::gh_cli_status,
+            git::gh_bind_cli,
+            git::gh_claim_existing
         ])
         .setup(|app| {
             // 菜单栏（托盘）常驻

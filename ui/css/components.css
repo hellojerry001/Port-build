@@ -1125,6 +1125,8 @@
 /* -------- 环境自检 -------- */
 
 .set-checks { padding-bottom: var(--px-6); }
+/* 清单收起（ready 清空 innerHTML）时别让空容器留下下内边距，跟头部对齐 */
+.set-checks:empty { padding-bottom: 0; }
 
 .set-check {
   display: flex;
@@ -1190,13 +1192,19 @@
 
 /* -------- 仓库状态表 -------- */
 
-.set-card .table { margin-bottom: var(--px-8); }
-
-.set-card .table th:first-child,
-.set-card .table td:first-child { padding-left: 0; }
-
-.set-card .table th:last-child,
-.set-card .table td:last-child { padding-right: 0; }
+/* 通栏高亮：表格左右各负 12px 外边距，单元格恢复默认 12px 内边距。
+   效果 = 文字仍与卡片 16px 内容边对齐（跟 set-head 同一竖线），
+   但 hover 高亮条向两侧多延伸 12px，文字不再顶在色条两端；
+   色条距卡片圆角边还留 4px，不会贴到卡片边缘。 */
+.set-card .table {
+  /* width:100% + 负边距会过约束（LTR 下 margin-right 被改写成正值，右侧收不出去），
+     必须显式把宽度加回来：内容宽 + 两侧各 12px */
+  width: calc(100% + var(--px-12) * 2);
+  margin: 0 calc(var(--px-12) * -1);
+  /* 底部留白必须用 padding：set-card 无 padding-bottom，margin-bottom 会
+     折叠出卡片外，最后一条 hover 高亮行就贴到卡片圆角底边了 */
+  padding-bottom: var(--px-8);
+}
 
 /* 数字列：表头与单元格都要右对齐，只给 th 加类会两头对不上 */
 .set-card .table .col-num {
@@ -1263,6 +1271,92 @@
   box-shadow: none;
 }
 .git-badge.is-warn:hover { background: var(--c-surface-6); color: var(--c-text); }
+
+/* ============================ GitHub 账号绑定 ============================ */
+/* 设置页的账号区（未绑定 / 已绑定）与 Device Flow 弹窗 */
+.gh-account { margin-top: var(--px-4); }
+
+.gh-row {
+  display: flex;
+  align-items: center;
+  gap: var(--px-10);
+  padding: var(--px-10) 0 0;
+}
+
+.gh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--c-text-3);
+}
+.gh-bound .gh-dot { background: var(--c-ok, #2f9e63); }
+/* 「已有凭证但未记名」：推送是通的，所以给个中间态，不用 bind 的灰点 */
+.gh-partial .gh-dot { background: var(--c-warn-strong); }
+
+.gh-main { min-width: 0; flex: 1; }
+.gh-name { font-size: var(--fs-13); color: var(--c-text); }
+.gh-note { font-size: var(--fs-12); color: var(--c-text-2); margin-top: 2px; }
+
+/* 提醒（非错误）：绑定会替换已有凭证时用 */
+.field-hint.is-warn { color: var(--c-warn-strong); }
+
+/* 已绑定态里的「在 GitHub 上管理授权」外链：跟随正文色，只靠下划线提示可点 */
+.gh-inline-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.gh-inline-link:hover { color: var(--c-text); }
+
+/* 高级折叠：默认收起，避免把 Client ID 摆在所有用户面前 */
+.gh-adv { margin-top: var(--px-10); border-top: var(--hairline) solid var(--c-border-field); padding-top: var(--px-10); }
+.gh-adv-sum {
+  font-size: var(--fs-12);
+  color: var(--c-text-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.gh-adv-sum::-webkit-details-marker { display: none; }
+.gh-adv-sum::before {
+  content: "›";
+  display: inline-block;
+  width: 12px;
+  transition: transform .12s;
+}
+.gh-adv[open] .gh-adv-sum::before { transform: rotate(90deg); }
+.gh-adv-body { padding-top: var(--px-10); }
+
+.field.is-grow { flex: 1; min-width: 0; }
+
+/* 授权码展示 */
+.gh-step { display: flex; flex-direction: column; gap: var(--px-10); }
+.gh-step-label { font-size: var(--fs-13); color: var(--c-text); }
+.gh-step-label.is-bad { color: var(--c-warn-strong); }
+
+.gh-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-20);
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-align: center;
+  padding: var(--px-14) 0;
+  color: var(--c-text);
+  background: var(--c-surface-3);
+  border-radius: var(--r-10);
+}
+
+.gh-code-actions { display: flex; gap: var(--px-8); justify-content: center; }
+
+.gh-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  font-size: var(--fs-12);
+  color: var(--c-text-2);
+}
+
+/* 解绑是破坏性操作，用弱化的危险色，不抢主按钮的视觉 */
+.btn.is-danger { color: var(--c-warn-strong); }
+.btn.is-danger:hover { background: var(--c-warn-strong); color: var(--c-text-inv); }
 
 /* -------- 面板 -------- */
 .gp-row { display: flex; gap: var(--px-10); padding: var(--px-4) 0; font-size: var(--fs-12); }
