@@ -15,7 +15,9 @@ const AUTO_KEY = "pb-auto-update";
 let abInfo = null;     // app_info 的结果
 let abCheck = null;    // check_manifest 的结果，null = 还没查过
 let abBusy = false;    // 正在检查
-let abErr = "";        // 检查失败原因
+let abErr = "";        // 手动检查的失败原因（红字）
+let abQuietFail = "";  // 静默检查失败的提示（灰字）——两者必须分开，
+                       // 否则每次断网启动都会在页面上留一行红字
 let abDl = null;       // download_status 的最新快照
 let abTimer = null;    // 下载进度轮询
 
@@ -70,6 +72,8 @@ function renderAbout() {
     note.textContent = "有新版本 " + abCheck.latest;
   } else if (abCheck) {
     note.textContent = "已是最新";
+  } else if (abQuietFail) {
+    note.textContent = abQuietFail;   // 灰字，不加 is-bad
   } else {
     note.textContent = "";
   }
@@ -137,6 +141,7 @@ async function checkUpdate(manual) {
   if (abBusy || !abInfo) return;
   abBusy = true;
   abErr = "";
+  abQuietFail = "";
   renderAbout();
 
   try {
@@ -149,11 +154,18 @@ async function checkUpdate(manual) {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const text = await r.text();
     abCheck = await invoke("check_manifest", { text: text, current: abInfo.version });
+    abQuietFail = "";
     markAboutDot(abCheck.hasUpdate);
     if (manual) toast(abCheck.hasUpdate ? "发现新版本 " + abCheck.latest : "已是最新版本");
   } catch (e) {
     abCheck = null;
-    abErr = "检查更新失败：" + (e && e.message ? e.message : e);
+    const why = e && e.message ? e.message : String(e);
+    // 静默检查失败**不写红字**：启动时断网 / 走代理是常态，页面上平白多一行
+    // 红色报错只会吓人。但也不能什么都不说 —— 否则用户会把「没查成」读成
+    // 「已是最新」。所以分成两档：手动检查给红字 + toast，静默失败只留一句
+    // 灰字，并且不 toast、不亮圆点。
+    abErr = manual ? "检查更新失败：" + why : "";
+    abQuietFail = manual ? "" : "上次自动检查未成功，可手动重试";
     markAboutDot(false);
     if (manual) toast(abErr);
   }
