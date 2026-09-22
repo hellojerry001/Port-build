@@ -641,6 +641,8 @@
 .src-path {
   flex: 1;
   min-width: 0;
+  /* .input-row 是 stretch，不单独归零的话这一行文字会贴在行顶，比两侧按钮高半行 */
+  align-self: center;
   color: var(--c-text-2);
   font-family: var(--ff-mono);
   font-size: var(--fs-11);
