@@ -1,8 +1,9 @@
 /* =============================================================================
-   settings.js · 设置页（提交身份 + 默认值）
+   settings.js · 设置页（提交身份 + 默认值 + 外观）
    -----------------------------------------------------------------------------
    GitHub 账号绑定、同步检测与项目仓库已拆到「项目仓库」页（repos.js）。
-   这一页只负责两件事：把本机 git 环境**读出来**，把身份与偏好**写回去**。
+   这一页只负责三件事：把本机 git 环境**读出来**，把身份与偏好**写回去**，
+   以及提供外观（主题）设置入口。
 
    写法与 about.js 一致：状态集中在顶部，渲染一律由 renderSettings() 从状态推导，
    不做增量改 DOM。唯一的例外是三个输入框 —— 它们是「用户正在编辑」的那份数据，
@@ -78,9 +79,16 @@ function renderToggles() {
   set($("gsFirst"), !!(gsDraft && gsDraft.autoFirstCommit));
 }
 
+function renderTheme() {
+  const m = PBTheme.mode();
+  $("themeTriggerIcon").innerHTML = themeSvg(THEME_ICON[m]);
+  $("themeTriggerLabel").textContent = PBTheme.LABEL[m];
+}
+
 function renderSettings() {
   renderIdentity();
   renderToggles();
+  renderTheme();
 }
 
 /* ============================== 数据 ============================== */
@@ -190,4 +198,55 @@ on("gs-global", async () => {
   }
   gsBusy = false;
   renderSettings();
+});
+
+/* ============================== 主题选择器 ============================== */
+
+function themePopoverOpen() { return $("themePopover").classList.contains("is-open"); }
+
+function renderThemePopover() {
+  const cur = PBTheme.mode();
+  $("themePopover").innerHTML = PBTheme.MODES.map(m =>
+    '<button class="' + cls("theme-opt", m === cur && "is-on") + '"' +
+    dataAttrs({ act: "theme-pick", mode: m }) + ">" +
+      themeSvg(THEME_ICON[m]) +
+      "<span>" + esc(PBTheme.LABEL[m]) + "</span>" +
+      '<svg class="tick" viewBox="0 0 20 20"><path d="M4.8 10.4 8.4 14l6.8-8"/></svg>' +
+    "</button>").join("");
+}
+
+function openThemePopover() {
+  renderThemePopover();
+  $("themePopover").classList.add("is-open");
+  $("themePopover").setAttribute("aria-hidden", "false");
+  $("themeTrigger").setAttribute("aria-expanded", "true");
+}
+
+function closeThemePopover() {
+  $("themePopover").classList.remove("is-open");
+  $("themePopover").setAttribute("aria-hidden", "true");
+  $("themeTrigger").setAttribute("aria-expanded", "false");
+}
+
+on("theme-trigger", () => {
+  if (themePopoverOpen()) closeThemePopover();
+  else openThemePopover();
+});
+
+on("theme-pick", el => {
+  PBTheme.set(el.dataset.mode);
+  closeThemePopover();
+});
+
+/* 点触发器与浮层以外的地方收起 */
+document.addEventListener("click", e => {
+  if (!themePopoverOpen()) return;
+  if (e.target.closest("#themeField")) return;
+  closeThemePopover();
+});
+
+/* 主题切换后同步更新本页显示（订阅时立即回调一次，所以首次渲染也会触发） */
+PBTheme.subscribe(() => {
+  renderTheme();
+  if (themePopoverOpen()) renderThemePopover();
 });

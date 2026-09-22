@@ -102,6 +102,79 @@
 
 .theme-menu.is-open { display: block; }
 
+/* ------------------------------ 设置页主题选择器 ------------------------------ */
+
+.theme-field {
+  position: relative;
+  display: inline-block;
+  min-width: var(--px-90);
+}
+
+.theme-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--px-8);
+  width: 100%;
+  padding: var(--px-6) var(--px-10);
+  background: var(--c-fill-field);
+  border: var(--hairline) solid var(--c-border-field);
+  border-radius: var(--r-8);
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.theme-trigger:hover { background: var(--c-surface-2); }
+.theme-trigger[aria-expanded="true"] { border-color: var(--c-border-focus); }
+
+.theme-trigger-icon {
+  flex: none;
+  width: var(--icon);
+  height: var(--icon);
+  color: var(--c-text-2);
+}
+
+.theme-trigger-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-trigger-label { flex: 1; min-width: 0; text-align: left; }
+
+.theme-trigger-chevron {
+  flex: none;
+  width: var(--px-14);
+  height: var(--px-14);
+  color: var(--c-text-2);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.theme-trigger[aria-expanded="true"] .theme-trigger-chevron { transform: rotate(180deg); }
+
+.theme-popover {
+  position: absolute;
+  top: calc(100% + var(--px-4));
+  left: 0;
+  min-width: 100%;
+  padding: var(--px-4);
+  background: var(--c-modal);
+  border: var(--hairline) solid var(--c-border-float);
+  box-shadow: var(--c-shadow-lift);
+  border-radius: var(--r-10);
+  display: none;
+  z-index: var(--z-tip);
+}
+
+.theme-popover.is-open { display: block; }
+
 .theme-opt {
   display: flex;
   align-items: center;
@@ -1076,12 +1149,24 @@
    这里要放「图标 + 两行文字」的自检项与带开关的设置行，硬套 .about-row
    反而要到处覆写，所以另起 .set-* 命名。唯一共用的是跳转箭头（见 .set-link）。 */
 
+.set-section { margin-bottom: var(--px-24); }
+
+.set-section-title {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semi);
+  color: var(--c-text-2);
+  margin-bottom: var(--px-12);
+  padding-left: var(--px-4);
+}
+
 .set-card {
   background: var(--c-surface-1);
   border-radius: var(--r-12);
   padding: 0 var(--px-16);
   margin-bottom: var(--gap-row);
 }
+
+.set-card:last-child { margin-bottom: 0; }
 
 /* 卡片无内边距，间距全由行自己给，首末行才和卡片边缘对齐 */
 .set-head {

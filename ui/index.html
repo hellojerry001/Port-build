@@ -134,68 +134,96 @@
   </section>
 
   <!-- ============================== 设置 ============================== -->
-  <!-- 设置页只保留提交身份与默认值，GitHub 同步相关内容已拆到「项目仓库」页 -->
   <section class="page" id="page-settings">
-    <div class="set-card">
-      <div class="set-head">
-        <div class="set-title">提交身份</div>
-        <div class="set-note">提交到 GitHub 时带的名字与邮箱；留空表示沿用 git 全局配置</div>
-      </div>
-      <div class="set-body">
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="gsName">名字</label>
-            <input class="input" type="text" id="gsName" data-k="name" data-oninput="gs-field"
-                   placeholder="沿用 git 全局配置" autocomplete="off" />
+    <!-- GitHub 设置 -->
+    <div class="set-section">
+      <div class="set-section-title">GitHub 设置</div>
+
+      <div class="set-card">
+        <div class="set-head">
+          <div class="set-title">提交身份</div>
+          <div class="set-note">提交到 GitHub 时带的名字与邮箱；留空表示沿用 git 全局配置</div>
+        </div>
+        <div class="set-body">
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="gsName">名字</label>
+              <input class="input" type="text" id="gsName" data-k="name" data-oninput="gs-field"
+                     placeholder="沿用 git 全局配置" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="gsEmail">邮箱</label>
+              <input class="input" type="text" id="gsEmail" data-k="email" data-oninput="gs-field"
+                     placeholder="沿用 git 全局配置" autocomplete="off" />
+            </div>
           </div>
-          <div class="field">
-            <label class="field-label" for="gsEmail">邮箱</label>
-            <input class="input" type="text" id="gsEmail" data-k="email" data-oninput="gs-field"
-                   placeholder="沿用 git 全局配置" autocomplete="off" />
+          <div class="field-hint" id="gsHint"></div>
+        </div>
+        <div class="set-foot">
+          <button class="btn is-ghost" data-act="gs-global">写入 git 全局配置</button>
+          <button class="btn is-primary" data-act="gs-save">保存设置</button>
+        </div>
+      </div>
+
+      <div class="set-card">
+        <div class="set-head">
+          <div class="set-title">默认值</div>
+          <div class="set-note">将来给项目建仓库时套用的默认行为</div>
+        </div>
+        <div class="set-body">
+          <!-- 单独包一层 .field-row：.is-slim 的定宽规则只在 field-row 里生效，
+               分行等宽是那一层的职责 -->
+          <div class="field-row">
+            <div class="field is-slim">
+              <label class="field-label" for="gsBranch">默认分支</label>
+              <input class="input" type="text" id="gsBranch" data-k="defaultBranch" data-oninput="gs-field"
+                     placeholder="main" autocomplete="off" />
+            </div>
+          </div>
+          <div class="set-row">
+            <div class="set-main">
+              <div class="set-row-label">自动写 .gitignore</div>
+              <div class="set-row-note">初始化仓库时按项目类型生成一份，免得把 node_modules 提上去</div>
+            </div>
+            <button class="switch" id="gsIgnore" role="switch" aria-checked="false"
+                    data-k="autoGitignore" data-act="gs-toggle" title="自动写 .gitignore"></button>
+          </div>
+          <div class="set-row">
+            <div class="set-main">
+              <div class="set-row-label">自动首次提交</div>
+              <div class="set-row-note">初始化后立刻产生一次 Initial commit</div>
+            </div>
+            <button class="switch" id="gsFirst" role="switch" aria-checked="false"
+                    data-k="autoFirstCommit" data-act="gs-toggle" title="自动首次提交"></button>
           </div>
         </div>
-        <div class="field-hint" id="gsHint"></div>
-      </div>
-      <div class="set-foot">
-        <button class="btn is-ghost" data-act="gs-global">写入 git 全局配置</button>
-        <button class="btn is-primary" data-act="gs-save">保存设置</button>
       </div>
     </div>
 
-    <div class="set-card">
-      <div class="set-head">
-        <div class="set-title">默认值</div>
-        <div class="set-note">将来给项目建仓库时套用的默认行为</div>
-      </div>
-      <div class="set-body">
-        <!-- 单独包一层 .field-row：.is-slim 的定宽规则只在 field-row 里生效，
-             分行等宽是那一层的职责 -->
-        <div class="field-row">
-          <div class="field is-slim">
-            <label class="field-label" for="gsBranch">默认分支</label>
-            <input class="input" type="text" id="gsBranch" data-k="defaultBranch" data-oninput="gs-field"
-                   placeholder="main" autocomplete="off" />
-          </div>
+    <!-- 外观设置 -->
+    <div class="set-section">
+      <div class="set-section-title">外观设置</div>
+
+      <div class="set-card">
+        <div class="set-head">
+          <div class="set-title">主题</div>
+          <div class="set-note">浅色、深色或跟随系统</div>
         </div>
-        <div class="set-row">
-          <div class="set-main">
-            <div class="set-row-label">自动写 .gitignore</div>
-            <div class="set-row-note">初始化仓库时按项目类型生成一份，免得把 node_modules 提上去</div>
+        <div class="set-body">
+          <div class="theme-field" id="themeField">
+            <button class="theme-trigger" id="themeTrigger" data-act="theme-trigger"
+                    aria-haspopup="listbox" aria-expanded="false">
+              <span class="theme-trigger-icon" id="themeTriggerIcon"></span>
+              <span class="theme-trigger-label" id="themeTriggerLabel">—</span>
+              <svg class="theme-trigger-chevron" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M6 8l4 4 4-4"/>
+              </svg>
+            </button>
+            <div class="theme-popover" id="themePopover" role="listbox" aria-hidden="true"></div>
           </div>
-          <button class="switch" id="gsIgnore" role="switch" aria-checked="false"
-                  data-k="autoGitignore" data-act="gs-toggle" title="自动写 .gitignore"></button>
-        </div>
-        <div class="set-row">
-          <div class="set-main">
-            <div class="set-row-label">自动首次提交</div>
-            <div class="set-row-note">初始化后立刻产生一次 Initial commit</div>
-          </div>
-          <button class="switch" id="gsFirst" role="switch" aria-checked="false"
-                  data-k="autoFirstCommit" data-act="gs-toggle" title="自动首次提交"></button>
         </div>
       </div>
     </div>
-
   </section>
 
   <!-- ============================== 关于 ============================== -->
