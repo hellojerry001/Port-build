@@ -146,6 +146,7 @@
   top: calc(100% + var(--px-4));
   left: 0;
   min-width: 100%;
+  width: max-content;
   padding: var(--px-4);
   background: var(--c-modal);
   border: var(--hairline) solid var(--c-border-float);
@@ -169,6 +170,7 @@
   font-family: inherit;
   font-size: var(--fs-12);
   text-align: left;
+  white-space: nowrap;
   border-radius: var(--r-7);
   cursor: pointer;
 }
