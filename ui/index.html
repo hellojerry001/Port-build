@@ -203,40 +203,43 @@
           <div class="chip-row" id="hsChips"></div>
         </div>
 
-        <div class="set-divider"></div>
+        <!-- GitHub 专属的三行：选了 Cloudflare 时整块不展示（不是灰化） -->
+        <div id="hsGhRows">
+          <div class="set-divider"></div>
 
-        <!-- GitHub Pages 产物分支 -->
-        <div class="set-row">
-          <div class="set-main">
-            <div class="set-row-label">产物分支</div>
-            <div class="set-row-note">GitHub 托管时，静态产物推到哪个分支（不动默认分支）</div>
+          <!-- GitHub Pages 产物分支 -->
+          <div class="set-row">
+            <div class="set-main">
+              <div class="set-row-label">产物分支</div>
+              <div class="set-row-note">GitHub 托管时，静态产物推到哪个分支（不动默认分支）</div>
+            </div>
+            <input class="input is-small" type="text" id="hsBranch" data-k="ghBranch"
+                   data-oninput="gs-field" data-onchange="gs-field-save" placeholder="gh-pages" autocomplete="off" />
           </div>
-          <input class="input is-small" type="text" id="hsBranch" data-k="ghBranch"
-                 data-oninput="gs-field" data-onchange="gs-field-save" placeholder="gh-pages" autocomplete="off" />
-        </div>
 
-        <div class="set-divider"></div>
+          <div class="set-divider"></div>
 
-        <!-- 新建仓库名前缀 -->
-        <div class="set-row">
-          <div class="set-main">
-            <div class="set-row-label">新建仓库名前缀</div>
-            <div class="set-row-note" id="hsPrefixNote">项目没有 GitHub 远端时，新建仓库的名字前缀</div>
+          <!-- 新建仓库名前缀 -->
+          <div class="set-row">
+            <div class="set-main">
+              <div class="set-row-label">新建仓库名前缀</div>
+              <div class="set-row-note" id="hsPrefixNote">项目没有 GitHub 远端时，新建仓库的名字前缀</div>
+            </div>
+            <input class="input is-small" type="text" id="hsPrefix" data-k="ghRepoPrefix"
+                   data-oninput="gs-field" data-onchange="gs-field-save" placeholder="pb-" autocomplete="off" />
           </div>
-          <input class="input is-small" type="text" id="hsPrefix" data-k="ghRepoPrefix"
-                 data-oninput="gs-field" data-onchange="gs-field-save" placeholder="pb-" autocomplete="off" />
-        </div>
 
-        <div class="set-divider"></div>
+          <div class="set-divider"></div>
 
-        <!-- 自动开启 Pages -->
-        <div class="set-row">
-          <div class="set-main">
-            <div class="set-row-label">自动开启 GitHub Pages</div>
-            <div class="set-row-note">推完分支后自动把 Pages 来源指到该分支；关掉则需自己去仓库设置里点</div>
+          <!-- 自动开启 Pages -->
+          <div class="set-row">
+            <div class="set-main">
+              <div class="set-row-label">自动开启 GitHub Pages</div>
+              <div class="set-row-note">推完分支后自动把 Pages 来源指到该分支；关掉则需自己去仓库设置里点</div>
+            </div>
+            <button class="switch" id="hsAutoPages" role="switch" aria-checked="false"
+                    data-k="ghAutoPages" data-act="gs-toggle" title="自动开启 GitHub Pages"></button>
           </div>
-          <button class="switch" id="hsAutoPages" role="switch" aria-checked="false"
-                  data-k="ghAutoPages" data-act="gs-toggle" title="自动开启 GitHub Pages"></button>
         </div>
       </div>
 

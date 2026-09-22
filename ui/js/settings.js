@@ -59,14 +59,17 @@ function renderHostingChips() {
   const note = $("hsNote");
   note.textContent = hit ? hit.note : "";
 
-  // GitHub 相关的三个设置只在选了 GitHub 时才有意义 —— 灰掉而不是藏起来，
-  // 免得用户以为「设置没了」
+  // 产物分支 / 仓库前缀 / 自动开 Pages 只有 GitHub 托管才有意义：
+  // 选了 Cloudflare 时**整块不展示**（含下方那句 public 仓库提示），
+  // 而不是灰掉 —— 这几项在 Cloudflare 路径上完全用不到，留着只是噪音。
   const gh = cur === "github";
+  const rows = $("hsGhRows");
+  if (rows) rows.hidden = !gh;
+  const hint = $("hsHint");
+  if (hint) hint.hidden = !gh;
   ["hsBranch", "hsPrefix", "hsAutoPages"].forEach(id => {
     const el = $(id);
-    if (!el) return;
-    el.disabled = gsBusy || !gsDraft || !gh;
-    el.classList.toggle("is-inactive", !gh);
+    if (el) el.disabled = gsBusy || !gsDraft || !gh;
   });
 }
 

@@ -1351,10 +1351,6 @@
 
 .set-card:last-child { margin-bottom: 0; }
 
-/* 设置项在某个上下文里不适用时（如没选 GitHub 托管）压低存在感 —— 
-   灰掉而不是藏起来，免得用户以为设置项消失了 */
-.set-row .is-inactive { opacity: 0.45; }
-
 /* 列表式设置卡：没有独立的 head/body/foot，整组由 .set-row 拼成 */
 .set-card.is-list { padding: 0 var(--px-16); }
 
