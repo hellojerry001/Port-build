@@ -81,6 +81,8 @@ function goPage(key) {
   if (key === "repos" && typeof enterRepos === "function") enterRepos();
   // 进设置页时补数据（settings.js 定义；用 typeof 挡住加载顺序问题）
   if (key === "settings" && typeof enterSettings === "function") enterSettings();
+  // 进模板库页时补数据（templates.js 定义；用 typeof 挡住加载顺序问题）
+  if (key === "templates" && typeof enterTemplates === "function") enterTemplates();
   // 进关于页时补数据并清掉提示圆点（about.js 定义；用 typeof 挡住加载顺序问题）
   if (key === "about" && typeof enterAbout === "function") enterAbout();
   document.querySelector(".app-main").scrollTop = 0;

@@ -84,6 +84,11 @@ function openBrowser(port) {
   invoke("open_url", { url: "http://localhost:" + port }).catch(e => toast(String(e)));
 }
 
+/* 在访达中选中文件 / 文件夹。失败直接弹 toast，调用方不必自己包 try/catch */
+function showInFinder(path) {
+  invoke("show_in_finder", { path }).catch(e => toast(String(e)));
+}
+
 /* ------------------------------ 调起原生目录选择器 ------------------------------ */
 /* 选中后回填到指定输入框；用户取消（返回 null）则保持原值 */
 async function chooseFolder(inputId, prompt) {

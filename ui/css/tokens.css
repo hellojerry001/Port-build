@@ -230,6 +230,7 @@
   --switch-h:        20px;
   --switch-knob:     16px;
   --grid-min:        320px;   /* 项目卡片 */
+  --grid-min-tpl:    280px;   /* 模板库卡片（内容更短，列可以更窄） */
   --grid-min-page:   340px;   /* 发布记录页两列起 */
   --set-name-w:      220px;   /* 设置页仓库表：项目名省略宽度 */
   --set-remote-w:    260px;   /* 设置页仓库表：远端地址省略宽度 */

@@ -536,24 +536,105 @@
 /* 空态直接落在表格单元格里时，需要压过 .table td 的内边距 */
 .table td.empty-state { padding: var(--px-40) 0; }
 
-/* ============================== 占位页 ============================== */
-.void-state {
-  border-radius: var(--r-12);
-  background: var(--c-surface-1);
-  padding: var(--px-46) var(--px-20);
-  text-align: center;
+/* ============================== 模板库 ============================== */
+/* 卡片比项目卡片窄一档：模板只有名称 / 说明 / 两条参数，不需要 320px */
+.tpl-lib-card { display: flex; flex-direction: column; }
+
+/* 头部：左边缩略标识，右边「名称 + 参数」。名称与右侧端口各占一行两侧，
+   参数行独立成行 —— 三者挤在一行时（长名称 + 长 key）会把名称省略掉 */
+.tpl-lib-head {
+  display: flex;
+  align-items: center;
+  gap: var(--px-10);
 }
 
-.void-title { font-size: var(--fs-13); font-weight: var(--fw-semi); }
+.tpl-lib-id { flex: 1; min-width: 0; }
 
-.void-desc {
+.tpl-lib-title {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
+/* 缩略标识：灰底圆角块 + 层叠图标，替掉彩色 logo，与整体灰阶基调一致 */
+.tpl-lib-icon {
+  flex: none;
+  width: var(--rail-btn);
+  height: var(--rail-btn);
+  border-radius: var(--r-10);
+  background: var(--c-surface-3);
+  color: var(--c-text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tpl-lib-icon svg {
+  width: var(--icon);
+  height: var(--icon);
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 参数行：模板 key · Node 版本 · 启动命令 */
+.tpl-lib-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--px-5);
   color: var(--c-text-3);
-  font-size: var(--fs-12);
-  margin-top: var(--px-7);
-  line-height: var(--lh-17);
+  font-size: var(--fs-11);
+  margin-top: var(--px-5);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.void-state .btn { margin-top: var(--px-16); }
+.tpl-lib-sub .sep { opacity: .6; }
+.tpl-lib-sub .mono { font-family: var(--ff-mono); }
+
+/* 说明：模板用途一句话 */
+.tpl-lib-desc {
+  color: var(--c-text-2);
+  font-size: var(--fs-12);
+  line-height: var(--lh-16);
+  margin-top: var(--px-12);
+}
+
+/* 启动命令：模板复制到新项目后由应用执行的那条命令 */
+.tpl-lib-cmd {
+  color: var(--c-text-3);
+  font-size: var(--fs-11);
+  margin-top: var(--px-6);
+}
+
+.tpl-lib-cmd .mono { font-family: var(--ff-mono); color: var(--c-text-2); }
+
+.tpl-lib-warn {
+  color: var(--c-warn);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  margin-top: var(--px-6);
+}
+
+/* 卡片操作行钉在底部，说明长短不同也不会让按钮错位 */
+.tpl-lib-card .card-ops { margin-top: auto; padding-top: var(--px-14); }
+
+/* 页面底部说明行：模板从哪来、放什么文件 */
+.tpl-lib-note {
+  color: var(--c-text-3);
+  font-size: var(--fs-11);
+  line-height: var(--lh-17);
+  margin-top: var(--px-16);
+}
+
+.tpl-lib-note code {
+  font-family: var(--ff-mono);
+  color: var(--c-text-2);
+  word-break: break-all;
+}
 
 /* ============================== 弹窗 ============================== */
 .overlay {

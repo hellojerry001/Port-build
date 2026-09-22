@@ -79,6 +79,16 @@ pub fn list_scaffolds() -> Vec<Scaffold> {
     out
 }
 
+/// 模板根目录的绝对路径（不存在就建出来），供模板库页的「打开模板目录」定位
+#[tauri::command]
+pub fn scaffold_root_path() -> Result<String, String> {
+    let root = scaffold_root();
+    if !root.exists() {
+        fs::create_dir_all(&root).map_err(|e| format!("创建模板目录失败：{e}"))?;
+    }
+    Ok(root.to_string_lossy().to_string())
+}
+
 /// 已被占用的端口 = 已登记项目 + 系统正在监听
 fn reserved_ports() -> Vec<u16> {
     let mut v: Vec<u16> = projects::load().iter().map(|p| p.port).collect();

@@ -529,13 +529,8 @@ async function cancelBuild() {
   $("bdCancel").disabled = true;
 }
 
-async function revealBuild() {
-  if (!buildDmg) return;
-  try {
-    await invoke("show_in_finder", { path: buildDmg });
-  } catch (e) {
-    toast(String(e));
-  }
+function revealBuild() {
+  if (buildDmg) showInFinder(buildDmg);
 }
 
 on("build-open",   el => openBuild(el.dataset.id));

@@ -75,6 +75,7 @@ pub fn run() {
             publishes::delete_publish,
             publishes::clear_publishes,
             scaffolds::list_scaffolds,
+            scaffolds::scaffold_root_path,
             scaffolds::suggest_port,
             scaffolds::create_project,
             update::app_info,

@@ -4,7 +4,16 @@
 
 const LAST_PARENT = "pb.lastParent";   // 记住上次选的存放目录
 
-async function openTemplate() {
+/* 模板列表在弹窗与模板库页共用。缓存已有结果，force=true 时重新拉取
+   （用户在模板目录里加/删了脚手架，点「刷新」要能看到变化）。 */
+async function loadScaffolds(force) {
+  if (scaffolds.length && !force) return scaffolds;
+  scaffolds = await invoke("list_scaffolds");
+  return scaffolds;
+}
+
+/* preselect: 从模板库点某张卡片的「用此模板新建」进来时，直接选中那个模板 */
+async function openTemplate(preselect) {
   closeEditor();
   tplPicked = "";
   tplBusy = false;
@@ -22,7 +31,7 @@ async function openTemplate() {
   openModal("tplModal");
 
   try {
-    scaffolds = await invoke("list_scaffolds");
+    await loadScaffolds(true);
   } catch (e) {
     toast(String(e));
     return;
@@ -36,7 +45,8 @@ async function openTemplate() {
     return;
   }
 
-  pickTpl(scaffolds[0].key);
+  const hit = scaffolds.some(s => s.key === preselect);
+  pickTpl(hit ? preselect : scaffolds[0].key);
   $("tName").focus();
 }
 
@@ -142,12 +152,98 @@ async function submitTemplate() {
   setTimeout(() => openBrowser(created.port), 6000);
 }
 
+/* ============================== 模板库页面 ==============================
+   内置模板的只读总览：卡片网格 + 说明行。数据与弹窗共用 loadScaffolds()，
+   卡片上的「用此模板新建」直接带着 key 打开弹窗，省掉再选一次。 */
+
+/* 卡片左侧的缩略标识：与 rail「模板库」同一个层叠图标，装进灰底圆角块 */
+const TPL_GLYPH =
+  '<span class="tpl-lib-icon"><svg viewBox="0 0 20 20">' +
+  '<path d="M10 3.6 3.6 6.9 10 10.2l6.4-3.3z"/><path d="M3.6 10.4 10 13.7l6.4-3.3"/>' +
+  '<path d="M3.6 13.6 10 16.9l6.4-3.3"/></svg></span>';
+
+async function enterTemplates() {
+  const grid = $("tplLibGrid");
+  grid.innerHTML = UI.empty(UI.spinner("正在读取模板…"), { span: true, compact: true });
+  $("tplLibCount").textContent = "";
+  loadTplRoot();
+
+  try {
+    await loadScaffolds(true);
+  } catch (e) {
+    grid.innerHTML = UI.empty("读取模板失败：" + esc(String(e)), { span: true });
+    return;
+  }
+  renderTplLibrary();
+}
+
+/* 说明行里的模板目录：后端会把目录建出来并回传绝对路径，拿不到就保留默认文案 */
+async function loadTplRoot() {
+  try {
+    $("tplLibRoot").textContent = await invoke("scaffold_root_path");
+  } catch (_) {}
+}
+
+function renderTplLibrary() {
+  const grid = $("tplLibGrid");
+  $("tplLibCount").innerHTML = scaffolds.length
+    ? "共 <b>" + scaffolds.length + "</b> 个模板"
+    : "";
+
+  if (!scaffolds.length) {
+    grid.innerHTML = UI.empty(
+      "还没装模板。把脚手架目录放进 ~/.portbutler/scaffolds 即可（需要含 .pb-scaffold.json）",
+      { span: true });
+    return;
+  }
+
+  grid.innerHTML = scaffolds.map(s => {
+    const ops = [
+      UI.btn("用此模板新建", { act: "tpl-lib-new", data: { key: s.key } }),
+      UI.btn("打开目录", { variant: "ghost", act: "tpl-lib-reveal", data: { path: s.path } }),
+    ].join("");
+
+    return '<div class="card tpl-lib-card">' +
+        '<div class="tpl-lib-head">' +
+          TPL_GLYPH +
+          '<div class="tpl-lib-id">' +
+            '<div class="tpl-lib-title">' +
+              '<span class="card-name">' + esc(s.name) + "</span>" +
+              '<span class="port-chip">:' + esc(s.portStart) + " 起</span>" +
+            "</div>" +
+            '<div class="tpl-lib-sub">' +
+              '<span class="mono">' + esc(s.key) + "</span>" +
+              '<span class="sep">·</span>Node ' + esc(s.nodeVersion || "默认") +
+            "</div>" +
+          "</div>" +
+        "</div>" +
+        '<div class="tpl-lib-desc">' + esc(s.desc || "（该模板没写说明）") + "</div>" +
+        '<div class="tpl-lib-cmd">启动命令 <span class="mono">' + esc(s.command) + "</span></div>" +
+        (s.nodeReady ? "" :
+          '<div class="tpl-lib-warn">未检测到 Node ' + esc(s.nodeVersion) +
+          "，启动将退回系统版本</div>") +
+        '<div class="card-ops">' + ops + "</div>" +
+      "</div>";
+  }).join("");
+}
+
 /* ============================== 动作注册 ============================== */
 on("template-open",   () => openTemplate());
-on("template-open-from-void", () => { goPage("projects"); openTemplate(); });
 on("template-close",  () => closeTemplate());
 on("template-submit", () => submitTemplate());
 on("tpl-pick",        el => pickTpl(el.dataset.key));
+
+/* 模板库页 */
+on("tpl-lib-refresh", () => enterTemplates());
+on("tpl-lib-new",     el => openTemplate(el.dataset.key));
+on("tpl-lib-reveal",  el => showInFinder(el.dataset.path));
+on("tpl-lib-reveal-root", async () => {
+  try {
+    showInFinder(await invoke("scaffold_root_path"));
+  } catch (e) {
+    toast(String(e));
+  }
+});
 
 onInput("tpl-name", () => onNameInput());
 onInput("tpl-slug", el => { el._manual = el.value.trim().length > 0; });

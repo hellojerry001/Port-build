@@ -257,8 +257,8 @@ on("about-auto", () => {
 on("about-download", () => startDownload());
 on("about-cancel", () => cancelDownload());
 
-on("about-reveal", async () => {
-  if (abDl && abDl.path) await invoke("show_in_finder", { path: abDl.path });
+on("about-reveal", () => {
+  if (abDl && abDl.path) showInFinder(abDl.path);
 });
 
 on("about-issues", async () => {
