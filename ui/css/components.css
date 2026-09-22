@@ -107,7 +107,7 @@
 .theme-field {
   position: relative;
   display: inline-block;
-  min-width: var(--px-90);
+  min-width: var(--px-110);
 }
 
 .theme-trigger {
@@ -333,9 +333,10 @@
 
 /* 小号按钮：设置行右侧的「编辑」「导入」等轻量操作 */
 .btn.is-small {
-  padding: var(--px-3) var(--px-9);
-  border-radius: var(--r-6);
-  font-size: var(--fs-11);
+  padding: var(--px-6) var(--px-10);
+  border-radius: var(--r-8);
+  font-size: var(--fs-12);
+  border: var(--hairline) solid transparent;
 }
 
 /* 危险操作 */
@@ -368,9 +369,10 @@
 .input:focus { border-color: var(--c-border-focus); }
 
 .input.is-small {
-  padding: var(--px-4) var(--px-8);
+  padding: var(--px-6) var(--px-10);
+  border-radius: var(--r-8);
   font-size: var(--fs-12);
-  min-width: var(--px-90);
+  min-width: var(--px-110);
   width: auto;
 }
 
