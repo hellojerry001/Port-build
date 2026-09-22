@@ -48,6 +48,12 @@ V=0.4.0                       # 新版本号
 # 2. 打包（产物在 src-tauri/target/*/bundle/macos/ 下）
 npm run tauri build -- --bundles app
 
+# 2.5 ⚠️ 必做：确认 .app 拿到了 ad-hoc 签名，否则用户下载后报「已损坏」
+codesign --verify --deep --strict src-tauri/target/release/bundle/macos/VibeButler.app
+# 期望：valid on disk / satisfies its Designated Requirement
+# 若报 "code has no resources but signature indicates they must be present" → 补签：
+codesign --force --deep --sign - src-tauri/target/release/bundle/macos/VibeButler.app
+
 # 3. 手工打 DMG（Tauri 内置的 dmg 打包在沙箱里会失败）
 STAGE=$(mktemp -d)
 cp -R src-tauri/target/release/bundle/macos/VibeButler.app "$STAGE/"
@@ -82,6 +88,38 @@ git add -A && git commit -m "release: v$V" && git push origin main
 > 另外 `api.github.com` 的匿名配额（60 次/小时，按出口 IP）实测已耗尽并返回
 > 403，**不能**拿它当「绕过 CDN 的第二来源」。
 
+## 签名与 Gatekeeper（用户说「已损坏」时看这里）
+
+`.app` 的签名由 `tauri.conf.json` 的 `bundle.macOS.signingIdentity` 决定，当前已配成 `"-"`（ad-hoc 伪身份）。
+
+**不配这一项时 Tauri 会完全跳过 codesign**，产物只剩链接器给主程序打的标记（`flags=0x20002(adhoc,linker-signed)`、`Sealed Resources=none`、`Info.plist=not bound`、没有 `_CodeSignature/`），`codesign --verify` 直接报错。这种包在本机双击没问题（没有下载隔离标记），但**从浏览器下载后必被 Gatekeeper 判「已损坏，无法打开。你应该将它移到废纸篓。」—— 而那个对话框没有任何放行入口**。
+
+| 包的状态 | 用户从浏览器下载后双击的表现 |
+| --- | --- |
+| 没签名（只有 linker 标记） | 「已损坏」→ 只能删掉，**无放行入口** |
+| ad-hoc 签名（`signingIdentity: "-"`） | 仍会拦，但可在「系统设置 › 隐私与安全性」点「仍要打开」放行 |
+| Developer ID + 公证 | 直接打开，无提示（需付费账号 $99/年 + notarytool） |
+
+也就是说 ad-hoc 签名是**必要的下限，不是充分条件**。要彻底免掉「仍要打开」这一步只有两条路：
+
+1. 付费 Apple Developer 账号 → 用 `Developer ID Application` 证书签名并公证（Tauri 侧配 `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`）。
+2. **让 App 自己下载并安装更新**：App 用 Rust 下载的文件不会带 `com.apple.quarantine`，装完可以直接打开、全程无提示。（尚未实现）
+
+判断某个包是哪种状态：
+
+```bash
+codesign -dv --verbose=2 <App>.app 2>&1 | grep -E "CodeDirectory|Sealed|Info.plist"
+# 好：flags=0x10002(adhoc,runtime) / Sealed Resources version=2 rules=13 files=1 / Info.plist entries=N
+# 坏：flags=0x20002(adhoc,linker-signed) / Sealed Resources=none / Info.plist=not bound
+```
+
+用户已经装上了、但提示「已损坏」时的兜底（在用户机器上执行一次）：
+
+```bash
+xattr -cr /Applications/VibeButler.app                          # 去掉下载隔离标记（最小修复）
+codesign --force --deep --sign - /Applications/VibeButler.app   # 再补一次 ad-hoc 签名（更稳）
+```
+
 ## 验证清单
 
 ```bash
@@ -89,5 +127,5 @@ git add -A && git commit -m "release: v$V" && git push origin main
 curl -s https://raw.githubusercontent.com/hellojerry001/Port-build/main/release.json | python3 -m json.tool
 
 # 安装包可下载且大小与 dmg_size 一致
-curl -sI https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.4.0_aarch64.dmg
+curl -sI https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_${V}_aarch64.dmg
 ```
