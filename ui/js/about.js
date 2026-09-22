@@ -100,7 +100,14 @@ function renderAbout() {
     const running = !!(dl && dl.running);
     const done = !!(dl && dl.done);
     const failed = !!(dl && dl.error && !dl.running);
-    $("abDl").hidden = running || done;
+    // 清单里没给安装包地址时**不出「下载并安装」**：点了只会弹一句「没有安装包地址」。
+    // 真会撞上：发布方先推了 version、安装包几分钟后才补上，而 raw CDN 有
+    // cache-control: max-age=300 且**忽略查询串**（`?t=` 与不带参数命中的是同一个
+    // 缓存对象，实测 source-age 完全同步），所以刚发完版就点检查，拿到的很可能是
+    // 那份「有版本号、没地址」的旧清单。此处改为一行说明，过几分钟重查即可。
+    const noPkg = !abCheck.dmgUrl;
+    $("abDl").hidden = running || done || noPkg;
+    $("abNoPkg").hidden = !noPkg || running || done;
     $("abCancel").hidden = !running;
     $("abReveal").hidden = !done;
     $("abProg").hidden = !running && !failed;

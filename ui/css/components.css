@@ -1182,6 +1182,7 @@
 }
 
 .about-note.is-bad { color: var(--c-danger); }
+.about-note.is-warn { color: var(--c-warn-strong); }
 
 .about-notes {
   margin: 0;

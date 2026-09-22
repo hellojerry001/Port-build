@@ -327,6 +327,9 @@
         <button class="btn is-ghost" id="abReveal" data-act="about-reveal" hidden>在访达中显示</button>
       </div>
 
+      <!-- 清单里没给安装包地址时才出现（见 about.js 的 noPkg） -->
+      <div class="about-note is-warn" id="abNoPkg" hidden>更新清单里暂时没有安装包地址（多半是刚发版、包还没传完）。过几分钟再点一次「检查更新」即可。</div>
+
       <ul class="about-notes" id="abNotes"></ul>
 
       <div class="about-prog" id="abProg" hidden>
