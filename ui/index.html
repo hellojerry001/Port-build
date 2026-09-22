@@ -681,6 +681,34 @@
   </div>
 </div>
 
+<!-- GitHub 账号解绑（破坏性操作，二次确认）
+     原先是 window.confirm：macOS 的 WKWebView 没有实现它，
+     点「解绑」静默返回 false → 什么都没发生。改自绘弹窗。 -->
+<div class="overlay" id="ghUnbindModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">解绑 GitHub 账号</h3>
+      <button class="icon-btn" data-act="gh-unbind-close" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="del-box">
+        <div class="del-name" id="ubWho"></div>
+        <div class="del-path" id="ubWhat"></div>
+      </div>
+      <!-- gh CLI 仍登录时才出现：它的凭证不归我们管，要不要一起退由用户决定 -->
+      <label class="del-opt" id="ubCliRow" hidden>
+        <input type="checkbox" id="ubCli" data-onchange="gh-unbind-cli" />
+        <span>同时退出 gh CLI 的登录（gh auth logout）</span>
+      </label>
+      <div class="del-tip" id="ubTip"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn is-ghost" id="ubCancel" data-act="gh-unbind-close">取消</button>
+      <button class="btn is-danger" id="ubBtn" data-act="gh-unbind-confirm">解绑</button>
+    </div>
+  </div>
+</div>
+
 <!-- 编辑提交身份弹窗 -->
 <div class="overlay" id="gsEditModal">
   <div class="modal">

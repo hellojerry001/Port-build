@@ -16,6 +16,7 @@ document.addEventListener("keydown", e => {
   if (modalOpen("delModal")) closeDelete();
   // 打包窗口 Esc 只关窗口，不中断打包（进程由后端持有）
   if (modalOpen("buildModal")) closeBuild();
+  if (modalOpen("ghUnbindModal")) closeGhUnbind();
 });
 
 /* ------------------------------ 启动 ------------------------------ */

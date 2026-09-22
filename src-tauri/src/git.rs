@@ -793,10 +793,53 @@ fn store_gh_token(token: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn delete_gh_token() {
-    let _ = Command::new("/usr/bin/security")
-        .args(["delete-internet-password", "-s", "github.com"])
-        .output();
+/// 删掉钥匙串里所有 github.com 凭证条目，返回实际删掉的条数。
+///
+/// `security` 一次只删一条匹配项，所以循环删到没有为止 —— 换过账号、或用
+/// 不同用户名存过凭证的机器上会残留多条，只删第一条的话「解绑」是假的。
+///
+/// 每轮先用 `has_github_cred()` 判存在，而不是去解析 security 的报错文案：
+/// 那是本地化字符串（中文系统上是「找不到指定的项目」），拿它做判断迟早出错。
+/// 存在却删不掉（用户点了「拒绝」）才是真失败，必须让用户看到原因。
+fn delete_gh_tokens() -> Result<usize, String> {
+    let mut n = 0usize;
+    while n < 32 {
+        if !has_github_cred() {
+            break;
+        }
+        let out = Command::new("/usr/bin/security")
+            .args(["delete-internet-password", "-s", "github.com"])
+            .output()
+            .map_err(|e| format!("调用 security 失败：{e}"))?;
+        if out.status.success() {
+            n += 1;
+            continue;
+        }
+        let err = crate::publish::strip_ansi(&String::from_utf8_lossy(&out.stderr)).trim().to_string();
+        if err.is_empty() {
+            break;
+        }
+        return Err(format!("删除钥匙串凭证失败：{err}"));
+    }
+    Ok(n)
+}
+
+/// 退出 gh CLI 在 github.com 的登录。
+///
+/// gh 把自己的 token 存在 `gh:github.com` 条目里，与我们要删的 `github.com`
+/// 凭证互不相干 —— 不单独退的话，`credential.helper` 指向 gh 的机器上
+/// 「解绑」之后 git 照样能推送，等于没解绑。
+fn gh_cli_logout() -> Result<(), String> {
+    let bin = gh_bin().ok_or_else(|| "没检测到 gh CLI".to_string())?;
+    let out = Command::new(bin)
+        .args(["auth", "logout", "--hostname", "github.com"])
+        .output()
+        .map_err(|e| format!("调用 gh 失败：{e}"))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let err = crate::publish::strip_ansi(&String::from_utf8_lossy(&out.stderr)).trim().to_string();
+    Err(if err.is_empty() { "gh auth logout 失败".into() } else { err })
 }
 
 /// 用 Bearer token 拉 `api.github.com/user`，取回登录名。
@@ -923,14 +966,67 @@ pub fn gh_account() -> Option<String> {
     Some(s.github_login)
 }
 
-/// 解绑：删钥匙串凭证 + 清设置里的用户名。项目文件原样保留（与 Lovable 行为一致）。
+/// 解绑回执。前端拿它给一句准确的话（删了几条凭证、有没有顺手退出 gh CLI）。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhUnbindResult {
+    /// 从钥匙串删掉的凭证条数
+    pub removed_creds: usize,
+    /// 有没有清掉记着的账号名
+    pub removed_login: bool,
+    /// 有没有顺带退出 gh CLI 登录
+    pub gh_cli_logout: bool,
+    /// 退出 gh CLI 失败的原因（不阻断解绑本身，只是提示）
+    pub gh_cli_error: Option<String>,
+    pub message: String,
+}
+
+/// 回执文案。抽成纯函数是为了能单测「一条凭证都没删到时别谎报成功」。
+fn unbind_message(login: &str, removed_creds: usize, removed_login: bool, gh_logout: bool) -> String {
+    let who = if login.is_empty() { "GitHub 账号".to_string() } else { format!("@{login}") };
+    let mut parts: Vec<String> = Vec::new();
+    if removed_creds > 0 {
+        parts.push(format!("已删除钥匙串里的 {removed_creds} 条凭证"));
+    } else {
+        parts.push("钥匙串里本来就没有 github.com 凭证".into());
+    }
+    if removed_login {
+        parts.push(format!("已忘掉 {who}"));
+    }
+    if gh_logout {
+        parts.push("已退出 gh CLI 登录".into());
+    }
+    format!("解绑完成：{}", parts.join("，"))
+}
+
+/// 解绑：删钥匙串凭证 + 清设置里的用户名，可选顺带退出 gh CLI 登录。
+/// 项目文件与远端仓库原样保留。
 #[tauri::command]
-pub fn gh_unbind() -> Result<(), String> {
-    delete_gh_token();
+pub fn gh_unbind(logout_gh_cli: Option<bool>) -> Result<GhUnbindResult, String> {
+    let removed_creds = delete_gh_tokens()?;
+
     let mut s = load_settings();
+    let login = s.github_login.clone();
+    let removed_login = !login.is_empty();
     s.github_login = String::new();
     save_settings_struct(&s)?;
-    Ok(())
+
+    let mut logged_out = false;
+    let mut gh_cli_error = None;
+    if logout_gh_cli.unwrap_or(false) {
+        match gh_cli_logout() {
+            Ok(()) => logged_out = true,
+            Err(e) => gh_cli_error = Some(e),
+        }
+    }
+
+    Ok(GhUnbindResult {
+        message: unbind_message(&login, removed_creds, removed_login, logged_out),
+        removed_creds,
+        removed_login,
+        gh_cli_logout: logged_out,
+        gh_cli_error,
+    })
 }
 
 /// 持久化 Client ID（OAuth App 标识，非机密）。
@@ -1287,5 +1383,20 @@ mod tests {
         // 有仓库但没改动：应当报「没有未提交的改动」，而不是去碰远端
         let e = git_commit_push(d.clone(), "feat: x".into()).unwrap_err();
         assert!(e.contains("没有未提交的改动"), "{e}");
+    }
+
+    #[test]
+    fn unbind_message_reports_what_really_happened() {
+        // 删到凭证 + 记着账号名：两句都要有
+        let m = unbind_message("hellojerry001", 1, true, false);
+        assert!(m.contains("1 条凭证"), "{m}");
+        assert!(m.contains("@hellojerry001"), "{m}");
+        // 没删到凭证时不能谎报「已删除」
+        let m = unbind_message("hellojerry001", 0, true, false);
+        assert!(m.contains("本来就没有"), "{m}");
+        assert!(!m.contains("已删除"), "{m}");
+        // 顺手退了 gh CLI 时要说明；没退就一个字都不提
+        assert!(unbind_message("a", 1, true, true).contains("gh CLI"));
+        assert!(!unbind_message("a", 1, true, false).contains("gh CLI"));
     }
 }

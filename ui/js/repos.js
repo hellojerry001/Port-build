@@ -132,6 +132,7 @@ function renderRepoGh() {
   }
 
   if (repoHasCred) {
+    // 有凭证但不知道属于谁：也允许解绑 —— 否则这份凭证在这页上没有任何出口
     box.innerHTML =
       '<div class="gh-row gh-partial">' +
         '<span class="gh-dot"></span>' +
@@ -141,6 +142,7 @@ function renderRepoGh() {
             ' · <a class="gh-inline-link" href="https://github.com/settings/applications"' +
             ' target="_blank" rel="noopener">在 GitHub 上管理授权</a></div>' +
         "</div>" +
+        '<button class="btn is-outline is-danger" data-act="gh-unbind">解绑</button>' +
         '<button class="btn is-ghost" data-act="gh-bind">重新绑定</button>' +
         '<button class="btn is-primary" data-act="gh-claim">认领账号</button>' +
       "</div>";
@@ -423,16 +425,108 @@ async function doGhClaim() {
   } catch (e) { toast(String(e)); }
 }
 
-async function doGhUnbind() {
-  const who = repoGhLogin ? "@" + repoGhLogin : "GitHub 账号";
-  if (!confirm("确定解绑 " + who + " 吗？\n\n解绑会删除钥匙串里的 GitHub 凭证，本地项目文件不受影响。")) return;
+/* ============================== 解绑（自绘二次确认） ==============================
+   这里原来是 window.confirm —— macOS 上 Tauri 用的是 WKWebView，它没有实现
+   原生 confirm 面板，`if (!confirm(...)) return` 会静默拿到 false，
+   于是点「解绑」什么都没发生。改成和「删除项目」同一套自绘弹窗。 */
+
+let ubBusy = false;   // 解绑请求进行中：期间不再响应按钮与关闭
+let ubErr = "";       // 失败原因（留在弹窗里，按钮变「重试」）
+
+function renderGhUnbind() {
+  const who = repoGhLogin ? "@" + repoGhLogin : "这台机器上的 GitHub 推送凭证";
+  $("ubWho").textContent = "解绑 " + who;
+  $("ubWhat").textContent = repoGhLogin
+    ? "会删除系统钥匙串里的 github.com 凭证，并清掉本应用记下的账号名。" +
+      "项目文件、提交记录与 GitHub 上的仓库都不受影响。"
+    : "会删除系统钥匙串里的 github.com 凭证。项目文件、提交记录与 GitHub 上的仓库都不受影响。";
+}
+
+/* 提示随「是否一起退 gh CLI」变化 */
+function syncGhUnbindTip() {
+  if (ubErr) { $("ubTip").textContent = ubErr; return; }
+
+  const cliOn = !!(repoGhCli && repoGhCli.loggedIn);
+  if (!cliOn) {
+    $("ubTip").textContent = "随时可以重新绑定，还是同一个 GitHub 账号。";
+    return;
+  }
+  if ($("ubCli").checked) {
+    $("ubTip").textContent = "会一并跑 gh auth logout github.com，之后终端里的 gh 也要重新登录。";
+    return;
+  }
+  // helper 指向 gh 时要点破：不退 gh 的话 git 照样能拿到 token 推送
+  const helper = (repoStatus && repoStatus.helper) || "";
+  $("ubTip").textContent = /gh/i.test(helper)
+    ? "本机 gh CLI 仍处于登录状态，而 credential.helper 正是 " + helper +
+      " —— 不一起退出的话，git 推送仍会拿它的凭证。"
+    : "本机 gh CLI 仍处于登录状态，不一起退出的话，下次可以一键绑定回同一账号。";
+}
+
+async function openGhUnbind() {
+  ubBusy = false;
+  ubErr = "";
+  renderGhUnbind();
+  $("ubCli").checked = false;
+  $("ubCliRow").hidden = true;      // 先按「没有 gh」渲染，拿到状态再决定要不要露出来
+  $("ubBtn").disabled = false;
+  $("ubCancel").disabled = false;
+  $("ubBtn").textContent = "解绑";
+  $("ubTip").textContent = "正在读本机 gh 登录状态…";
+  openModal("ghUnbindModal");
+  $("ubCancel").focus();
+
+  try { repoGhCli = await invoke("gh_cli_status"); } catch (_) { /* 读不到就当没装 */ }
+  if (modalOpen("ghUnbindModal")) {
+    $("ubCliRow").hidden = !(repoGhCli && repoGhCli.loggedIn);
+    syncGhUnbindTip();
+  }
+}
+
+function closeGhUnbind() {
+  if (ubBusy) return;
+  closeModal("ghUnbindModal");
+  ubErr = "";
+}
+
+async function confirmGhUnbind() {
+  if (ubBusy) return;
+  const logoutGhCli = !$("ubCliRow").hidden && $("ubCli").checked;
+
+  ubBusy = true;
+  ubErr = "";
+  $("ubBtn").disabled = true;
+  $("ubCancel").disabled = true;
+  $("ubBtn").textContent = "解绑中…";
+  $("ubTip").textContent = "正在删除钥匙串里的凭证…";
+
   try {
-    await invoke("gh_unbind");
+    const r = await invoke("gh_unbind", { logoutGhCli });
+    ubBusy = false;
+    closeModal("ghUnbindModal");
+
+    // 解绑后本机立刻变成「未绑定」：先把本地状态清掉再重拉，避免闪回已绑定态
     repoGhLogin = null;
+    repoHasCred = false;
     renderRepoGh();
-    loadRepoStatus();
-    toast("已解绑");
-  } catch (e) { toast(String(e)); }
+    try { repoGhCli = await invoke("gh_cli_status"); } catch (_) { /* 状态读不到不影响解绑结果 */ }
+    await loadRepoStatus();
+
+    let msg = (r && r.message) || "已解绑";
+    if (r && r.ghCliError) msg += "；gh CLI 未退出：" + r.ghCliError;
+    // 托管方式还指着 GitHub 的话要点出来，否则下次发布会直接失败
+    const hosting = (repoStatus && repoStatus.settings && repoStatus.settings.hosting) || "";
+    if (hosting === "github") msg += "。托管方式仍是 GitHub Pages，发布前需要重新绑定账号";
+    toast(msg);
+  } catch (e) {
+    // 失败不关弹窗：把原因留在原处，改完直接重试
+    ubBusy = false;
+    ubErr = String(e);
+    $("ubBtn").disabled = false;
+    $("ubCancel").disabled = false;
+    $("ubBtn").textContent = "重试";
+    syncGhUnbindTip();
+  }
 }
 
 on("gh-save-id", async () => {
@@ -445,9 +539,12 @@ on("gh-save-id", async () => {
 });
 
 on("gh-bind", () => openGhBind());
-on("gh-unbind", () => doGhUnbind());
+on("gh-unbind", () => openGhUnbind());
+on("gh-unbind-close", () => closeGhUnbind());
+on("gh-unbind-confirm", () => confirmGhUnbind());
 on("gh-claim", () => doGhClaim());
 on("gh-bind-close", () => closeGhBind());
+onChange("gh-unbind-cli", () => syncGhUnbindTip());
 on("gh-start", () => ghStart());
 on("gh-restart", () => startDeviceFlow());
 on("gh-bind-cli", () => doGhBindCli());

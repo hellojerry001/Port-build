@@ -1050,6 +1050,10 @@
   flex: none;
 }
 
+/* ⚠️ 这里的 display:flex 会盖掉 UA 的 [hidden]{display:none}：
+   「解绑」弹窗要在没有 gh CLI 时整行隐掉，必须自己补一条 */
+.del-opt[hidden] { display: none; }
+
 /* 配置态里的勾选项（如「打包成功后自动推送 GitHub」），复用 checkbox 视觉 */
 .opt-check {
   display: flex;
