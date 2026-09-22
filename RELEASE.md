@@ -103,7 +103,14 @@ git add -A && git commit -m "release: v$V" && git push origin main
 也就是说 ad-hoc 签名是**必要的下限，不是充分条件**。要彻底免掉「仍要打开」这一步只有两条路：
 
 1. 付费 Apple Developer 账号 → 用 `Developer ID Application` 证书签名并公证（Tauri 侧配 `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`）。
-2. **让 App 自己下载并安装更新**：App 用 Rust 下载的文件不会带 `com.apple.quarantine`，装完可以直接打开、全程无提示。（尚未实现）
+2. **让 App 自己下载并安装更新** —— 已实现（`src-tauri/src/install.rs` + 关于页的「安装并重启」）：
+   App 用 curl 下的 dmg 不会带 `com.apple.quarantine`，装进去的新版本直接就能打开，
+   全程没有任何 Gatekeeper 提示。挂载 → 校验 → `ditto` 到暂存名 → 同目录原子换名
+   （失败回滚）→ 校验/补签名 → `xattr -cr` → 自动重启，全在 App 内完成。
+
+> ⚠️ 第 2 条只对**下下个版本起**有效：用户手上那一版必须已经包含 `install.rs`。
+> 比如 0.5.0 的包里还没有这个功能，所以「0.5.0 → 0.5.1」这一次升级仍需手动拖拽
+> （或跑一次 `xattr -cr`）；从 0.5.1 升 0.5.2 就能一次点击到位了。
 
 判断某个包是哪种状态：
 

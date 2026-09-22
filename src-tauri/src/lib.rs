@@ -4,6 +4,7 @@ mod dialog;
 mod ghpages;
 mod git;
 mod icon;
+mod install;
 mod open;
 mod ports;
 mod projects;
@@ -87,6 +88,7 @@ pub fn run() {
             update::download_dmg,
             update::download_status,
             update::cancel_download,
+            install::install_update,
             git::git_status,
             git::git_repo_states,
             git::git_changed_files,

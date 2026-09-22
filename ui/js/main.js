@@ -17,6 +17,8 @@ document.addEventListener("keydown", e => {
   // 打包窗口 Esc 只关窗口，不中断打包（进程由后端持有）
   if (modalOpen("buildModal")) closeBuild();
   if (modalOpen("ghUnbindModal")) closeGhUnbind();
+  // 安装到一半不让 Esc 关（closeInstallModal 自己会拦）
+  if (modalOpen("abInstallModal")) closeInstallModal();
 });
 
 /* ------------------------------ 启动 ------------------------------ */

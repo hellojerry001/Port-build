@@ -301,7 +301,8 @@ pub fn cancel_download(table: tauri::State<'_, DownloadTable>) -> Result<String,
 /// 版本号比较：`a` 是否比 `b` 新。
 /// 只认主流的 `主.次.修订` 三段数字，缺位补 0；带预发布后缀（如 `0.4.0-beta.1`）
 /// 的一律判为**比同号正式版旧** —— 语义化版本的规矩，也符合直觉。
-fn version_gt(a: &str, b: &str) -> bool {
+/// `install.rs` 也用它拦「装回旧版本」，所以是 pub(crate)。
+pub(crate) fn version_gt(a: &str, b: &str) -> bool {
     let (an, apre) = parse_version(a);
     let (bn, bpre) = parse_version(b);
     let n = an.len().max(bn.len());

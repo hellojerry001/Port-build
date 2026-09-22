@@ -1,12 +1,18 @@
 /* =============================================================================
    about.js · 关于页与版本更新
    -----------------------------------------------------------------------------
-   更新的整条链路：**前端 fetch 清单 → 后端解析比对 → 后端 curl 下载 → 打开 DMG**。
+   更新的整条链路：**前端 fetch 清单 → 后端解析比对 → 后端 curl 下载 →
+   自绘确认 → 后端就地替换应用并重启**。
 
    为什么清单在前端 fetch：raw.githubusercontent.com 带 `access-control-allow-origin: *`，
    而应用的 CSP 是 null，所以取清单这一步不需要后端背一个 HTTP 客户端。
    但「解析清单 + 比较版本」刻意放后端（core 的 check_manifest 命令）——
    版本号比较是这功能里唯一容易写错的地方，放 Rust 侧才能单测。
+
+   为什么「安装」也放后端（install_update）：浏览器下载的包会被打上
+   com.apple.quarantine，未公证的应用首次打开必须去「系统设置 › 隐私与安全性」
+   放行；而**本应用自己 curl 下来的 dmg 没有这个标记**，装进去的新版本点一下就能
+   直接运行 —— 这是把「下载 → 拖拽 → 放行」压成一次点击的关键。
    ============================================================================= */
 
 const AUTO_KEY = "pb-auto-update";
@@ -20,6 +26,7 @@ let abQuietFail = "";  // 静默检查失败的提示（灰字）——两者必
                        // 否则每次断网启动都会在页面上留一行红字
 let abDl = null;       // download_status 的最新快照
 let abTimer = null;    // 下载进度轮询
+let abIns = null;      // 安装弹窗状态 { busy, err }；null = 还没在装
 
 const autoCheckOn = () => {
   try { return localStorage.getItem(AUTO_KEY) !== "0"; } catch (e) { return true; }
@@ -109,6 +116,8 @@ function renderAbout() {
     $("abDl").hidden = running || done || noPkg;
     $("abNoPkg").hidden = !noPkg || running || done;
     $("abCancel").hidden = !running;
+    // 下完 → 交给「安装并重启」（点开自绘确认弹窗）；不装也可以去访达里自己拿
+    $("abInstall").hidden = !done;
     $("abReveal").hidden = !done;
     $("abProg").hidden = !running && !failed;
 
@@ -213,12 +222,9 @@ async function tickDownload() {
   if (s.running) return;
   stopPolling();
   if (s.done) {
-    try {
-      await invoke("open_file", { path: s.path });
-      toast("安装包已打开，拖进「应用程序」就完成更新");
-    } catch (e) {
-      toast("下载完成，但打开失败：" + e);
-    }
+    // 不再自动用「预览」挂载 dmg 让用户自己拖 —— 直接进安装确认弹窗：
+    // 一次点击 = 替换 + 重启。想自己动手的，弹窗里还有「在访达中显示」。
+    openInstallModal();
   } else if (s.error) {
     toast(s.error);
   }
@@ -242,6 +248,63 @@ async function cancelDownload() {
   renderAbout();
 }
 
+/* ============================== 安装（自绘二次确认） ==============================
+   为什么不用 window.confirm：macOS 上的 WKWebView 没有实现它，会静默返回 false，
+   于是「点了没反应」。和应用里其它破坏性操作一样走自绘弹窗；
+   失败不关弹窗、按钮变「重试」、原因写在原地。
+
+   为什么安装要交给后端：浏览器下载的 dmg 会被打上 com.apple.quarantine，
+   未公证的应用首次打开必须去「系统设置 › 隐私与安全性」放行；后端用 curl 下的
+   包没有这个标记，替换进去的新版本可以直接打开 —— 这才是「一次点击完成升级」。 */
+
+function renderInstallModal() {
+  const busy = !!(abIns && abIns.busy);
+  const err = (abIns && abIns.err) || "";
+  const cur = (abInfo && abInfo.version) || "";
+  const next = (abCheck && abCheck.latest) || "";
+
+  $("aiWho").textContent =
+    (abInfo ? abInfo.name : "应用") + (cur ? " " + cur : "") + (next ? " → " + next : "");
+  $("aiWhat").textContent = "安装包：" + ((abDl && abDl.path) || "");
+  $("aiTip").textContent = err ||
+    "安装时应用会自动退出并重新打开；项目、端口与设置都不受影响。";
+  $("aiTip").classList.toggle("is-bad", !!err);
+
+  $("aiBtn").disabled = busy;
+  $("aiCancel").disabled = busy;
+  $("aiBtn").textContent = busy ? "正在安装…" : err ? "重试" : "立即安装并重启";
+}
+
+/// 打开确认弹窗；安装包没下完就不给开
+function openInstallModal() {
+  if (!abDl || !abDl.done || !abDl.path) return;
+  abIns = { busy: false, err: "" };
+  renderInstallModal();
+  openModal("abInstallModal");
+}
+
+function closeInstallModal() {
+  if (abIns && abIns.busy) return;   // 装到一半不让关，免得用户以为没在装
+  closeModal("abInstallModal");
+  abIns = null;
+}
+
+async function confirmInstall() {
+  if (!abDl || !abDl.done || (abIns && abIns.busy)) return;
+  abIns = { busy: true, err: "" };
+  renderInstallModal();
+
+  try {
+    // restart=true：后端装好后自己退出、1 秒后重新打开新版本。
+    // 正常路径下这个 await 不会返回（进程已经退了），所以后面不写收尾逻辑。
+    await invoke("install_update", { path: abDl.path, restart: true });
+    toast("已安装，应用正在重新打开");
+  } catch (e) {
+    abIns = { busy: false, err: String(e) };
+    renderInstallModal();
+  }
+}
+
 /// 进入关于页：首次进来补数据，顺手把提示圆点消掉
 async function enterAbout() {
   await loadAbout();
@@ -263,6 +326,12 @@ on("about-auto", () => {
 
 on("about-download", () => startDownload());
 on("about-cancel", () => cancelDownload());
+on("about-install", () => openInstallModal());
+on("ab-install-close", () => closeInstallModal());
+on("ab-install-confirm", () => confirmInstall());
+on("ab-install-reveal", () => {
+  if (abDl && abDl.path) showInFinder(abDl.path);
+});
 
 on("about-reveal", () => {
   if (abDl && abDl.path) showInFinder(abDl.path);

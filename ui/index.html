@@ -323,6 +323,8 @@
           <div class="about-note" id="abMeta"></div>
         </div>
         <button class="btn is-primary" id="abDl" data-act="about-download">下载并安装</button>
+        <!-- 安装包已下好时出现：点它走自绘确认 → 后端就地替换 → 自动重启 -->
+        <button class="btn is-primary" id="abInstall" data-act="about-install" hidden>安装并重启</button>
         <button class="btn is-ghost" id="abCancel" data-act="about-cancel" hidden>取消</button>
         <button class="btn is-ghost" id="abReveal" data-act="about-reveal" hidden>在访达中显示</button>
       </div>
@@ -709,6 +711,28 @@
     <div class="modal-foot">
       <button class="btn is-ghost" id="ubCancel" data-act="gh-unbind-close">取消</button>
       <button class="btn is-danger" id="ubBtn" data-act="gh-unbind-confirm">解绑</button>
+    </div>
+  </div>
+</div>
+
+<!-- 安装更新确认（同样自绘：WKWebView 没有原生 confirm） -->
+<div class="overlay" id="abInstallModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">安装更新</h3>
+      <button class="icon-btn" data-act="ab-install-close" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="del-box">
+        <div class="del-name" id="aiWho"></div>
+        <div class="del-path" id="aiWhat"></div>
+      </div>
+      <div class="del-tip" id="aiTip"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn is-ghost" data-act="ab-install-reveal">在访达中显示</button>
+      <button class="btn is-ghost" id="aiCancel" data-act="ab-install-close">稍后</button>
+      <button class="btn is-primary" id="aiBtn" data-act="ab-install-confirm">立即安装并重启</button>
     </div>
   </div>
 </div>
