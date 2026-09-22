@@ -194,13 +194,22 @@
       <div class="set-section-title">托管设置</div>
 
       <div class="set-card is-list">
-        <!-- 托管方式：二选一，用 chip 表示（与发布弹窗里的产物选择同一套控件） -->
+        <!-- 托管方式：下拉选择（与「外观设置 > 主题」同一套控件） -->
         <div class="set-row">
           <div class="set-main">
             <div class="set-row-label">托管方式</div>
             <div class="set-row-note" id="hsNote">发布时把站点发到哪儿</div>
           </div>
-          <div class="chip-row" id="hsChips"></div>
+          <div class="sel-field" id="hsHostingField">
+            <button class="sel-trigger" id="hsHostingTrigger" data-act="sel-trigger"
+                    data-drop="hosting" aria-haspopup="listbox" aria-expanded="false">
+              <span class="sel-trigger-label" id="hsHostingLabel">—</span>
+              <svg class="sel-trigger-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12.707 15.707a1 1 0 0 1-1.414 0L5.636 10.05A1 1 0 1 1 7.05 8.636l4.95 4.95 4.95-4.95a1 1 0 0 1 1.414 1.414l-5.657 5.657Z"/>
+              </svg>
+            </button>
+            <div class="sel-popover is-right" id="hsHostingPopover" role="listbox" aria-hidden="true"></div>
+          </div>
         </div>
 
         <!-- GitHub 专属的三行：选了 Cloudflare 时整块不展示（不是灰化） -->
@@ -258,15 +267,15 @@
             <div class="set-row-label">主题</div>
             <div class="set-row-note">浅色、深色或跟随系统</div>
           </div>
-          <div class="theme-field" id="themeField">
-            <button class="theme-trigger" id="themeTrigger" data-act="theme-trigger"
-                    aria-haspopup="listbox" aria-expanded="false">
-              <span class="theme-trigger-label" id="themeTriggerLabel">—</span>
-              <svg class="theme-trigger-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <div class="sel-field" id="themeField">
+            <button class="sel-trigger" id="themeTrigger" data-act="sel-trigger"
+                    data-drop="theme" aria-haspopup="listbox" aria-expanded="false">
+              <span class="sel-trigger-label" id="themeTriggerLabel">—</span>
+              <svg class="sel-trigger-chevron" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12.707 15.707a1 1 0 0 1-1.414 0L5.636 10.05A1 1 0 1 1 7.05 8.636l4.95 4.95 4.95-4.95a1 1 0 0 1 1.414 1.414l-5.657 5.657Z"/>
               </svg>
             </button>
-            <div class="theme-popover" id="themePopover" role="listbox" aria-hidden="true"></div>
+            <div class="sel-popover" id="themePopover" role="listbox" aria-hidden="true"></div>
           </div>
         </div>
       </div>

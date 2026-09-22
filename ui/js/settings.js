@@ -33,7 +33,7 @@ function draftFromSettings(s) {
   };
 }
 
-/* 托管方式：两个 chip 二选一。说明行跟着当前选择变，讲清这条路的代价 */
+/* 托管方式：下拉里的一项。说明行跟着当前选择变，讲清这条路的代价 */
 const HOSTINGS = [
   {
     key: "cloudflare",
@@ -47,17 +47,15 @@ const HOSTINGS = [
   },
 ];
 
-function renderHostingChips() {
-  const cur = gsDraft ? gsDraft.hosting : "cloudflare";
-  const box = $("hsChips");
-  if (!box) return;
-  box.innerHTML = HOSTINGS.map(h =>
-    '<button class="' + cls("chip", h.key === cur && "is-on") + '"' +
-    dataAttrs({ act: "hs-pick", key: h.key }) + ">" + esc(h.label) + "</button>").join("");
+function hostingKey() {
+  return gsDraft ? gsDraft.hosting : "cloudflare";
+}
 
+function syncHostingRows() {
+  const cur = hostingKey();
   const hit = HOSTINGS.filter(h => h.key === cur)[0];
   const note = $("hsNote");
-  note.textContent = hit ? hit.note : "";
+  if (note) note.textContent = hit ? hit.note : "";
 
   // 产物分支 / 仓库前缀 / 自动开 Pages 只有 GitHub 托管才有意义：
   // 选了 Cloudflare 时**整块不展示**（含下方那句 public 仓库提示），
@@ -142,16 +140,12 @@ function renderToggles() {
   set($("hsAutoPages"), !!(gsDraft && gsDraft.ghAutoPages));
 }
 
-function renderTheme() {
-  const m = PBTheme.mode();
-  $("themeTriggerLabel").textContent = PBTheme.LABEL[m];
-}
-
 function renderSettings() {
   renderIdentity();
   renderToggles();
-  renderTheme();
-  renderHostingChips();
+  syncHostingRows();
+  renderDrop("theme");
+  renderDrop("hosting");
 }
 
 /* ============================== 数据 ============================== */
@@ -262,10 +256,9 @@ on("gs-toggle", el => {
   });
 });
 
-/* 托管方式二选一：切完立刻落盘（和上面的开关同一套回滚逻辑） */
-on("hs-pick", el => {
+/* 托管方式下拉里选中一项：切完立刻落盘（和上面的开关同一套回滚逻辑） */
+function applyHosting(key) {
   if (!gsDraft || gsBusy) return;
-  const key = el.dataset.key;
   if (!key || key === gsDraft.hosting) return;
   const old = gsDraft.hosting;
   gsDraft.hosting = key;
@@ -276,7 +269,7 @@ on("hs-pick", el => {
       renderSettings();
     }
   });
-});
+}
 
 async function applyGitIdentity() {
   if (!gsDraft || gsBusy) return;
@@ -335,52 +328,97 @@ document.getElementById("gsEditModal").addEventListener("keydown", e => {
   }
 });
 
-/* ============================== 主题选择器 ============================== */
+/* ============================== 下拉选择器（通用） ==============================
+   「主题」「托管方式」是同一个交互：右侧一个触发器，点开是一个选项浮层。
+   展开 / 收起 / 点外关闭这套逻辑只写一份，两边各自给出选项与选中回调。 */
 
-function themePopoverOpen() { return $("themePopover").classList.contains("is-open"); }
+const DROPS = {
+  theme: {
+    fieldId: "themeField",
+    triggerId: "themeTrigger",
+    popoverId: "themePopover",
+    labelId: "themeTriggerLabel",
+    items: () => {
+      const cur = PBTheme.mode();
+      return PBTheme.MODES.map(m => ({ key: m, label: PBTheme.LABEL[m], on: m === cur }));
+    },
+    pick: key => PBTheme.set(key),
+  },
+  hosting: {
+    fieldId: "hsHostingField",
+    triggerId: "hsHostingTrigger",
+    popoverId: "hsHostingPopover",
+    labelId: "hsHostingLabel",
+    items: () => {
+      const cur = hostingKey();
+      return HOSTINGS.map(h => ({ key: h.key, label: h.label, on: h.key === cur }));
+    },
+    pick: key => applyHosting(key),
+  },
+};
 
-function renderThemePopover() {
-  const cur = PBTheme.mode();
-  $("themePopover").innerHTML = PBTheme.MODES.map(m =>
-    '<button class="' + cls("theme-opt", m === cur && "is-on") + '"' +
-    dataAttrs({ act: "theme-pick", mode: m }) + ">" +
-      "<span>" + esc(PBTheme.LABEL[m]) + "</span>" +
+function dropIsOpen(name) {
+  const d = DROPS[name];
+  return !!d && $(d.popoverId).classList.contains("is-open");
+}
+
+/* 触发器文字永远跟着当前值走；浮层开着的话顺带刷新选中态 */
+function renderDrop(name) {
+  const d = DROPS[name];
+  if (!d || !$(d.popoverId)) return;
+  const items = d.items();
+  const cur = items.filter(i => i.on)[0];
+  const label = $(d.labelId);
+  if (label) label.textContent = cur ? cur.label : "—";
+
+  $(d.popoverId).innerHTML = items.map(o =>
+    '<button class="' + cls("sel-opt", o.on && "is-on") + '"' +
+    dataAttrs({ act: "sel-pick", drop: name, key: o.key }) + ">" +
+      "<span>" + esc(o.label) + "</span>" +
       '<svg class="tick" viewBox="0 0 20 20"><path d="M4.8 10.4 8.4 14l6.8-8"/></svg>' +
     "</button>").join("");
 }
 
-function openThemePopover() {
-  renderThemePopover();
-  $("themePopover").classList.add("is-open");
-  $("themePopover").setAttribute("aria-hidden", "false");
-  $("themeTrigger").setAttribute("aria-expanded", "true");
+function openDrop(name) {
+  const d = DROPS[name];
+  renderDrop(name);
+  $(d.popoverId).classList.add("is-open");
+  $(d.popoverId).setAttribute("aria-hidden", "false");
+  $(d.triggerId).setAttribute("aria-expanded", "true");
 }
 
-function closeThemePopover() {
-  $("themePopover").classList.remove("is-open");
-  $("themePopover").setAttribute("aria-hidden", "true");
-  $("themeTrigger").setAttribute("aria-expanded", "false");
+function closeDrop(name) {
+  const d = DROPS[name];
+  $(d.popoverId).classList.remove("is-open");
+  $(d.popoverId).setAttribute("aria-hidden", "true");
+  $(d.triggerId).setAttribute("aria-expanded", "false");
 }
 
-on("theme-trigger", () => {
-  if (themePopoverOpen()) closeThemePopover();
-  else openThemePopover();
+on("sel-trigger", el => {
+  const name = el.dataset.drop;          // 触发器用 data-drop 指明自己属于哪个下拉
+  if (!DROPS[name]) return;
+  if (dropIsOpen(name)) closeDrop(name);
+  else openDrop(name);
 });
 
-on("theme-pick", el => {
-  PBTheme.set(el.dataset.mode);
-  closeThemePopover();
+/* ⚠️ 每次点选项都用 name 现查节点：浮层是整块 innerHTML 重渲的，
+   旧引用点过一次就脱离文档、再点不会触发委托。 */
+on("sel-pick", el => {
+  const name = el.dataset.drop;
+  const d = DROPS[name];
+  if (!d) return;
+  closeDrop(name);
+  d.pick(el.dataset.key);
 });
 
-/* 点触发器与浮层以外的地方收起 */
+/* 点触发器与浮层以外的地方收起（两个下拉各自独立判断） */
 document.addEventListener("click", e => {
-  if (!themePopoverOpen()) return;
-  if (e.target.closest("#themeField")) return;
-  closeThemePopover();
+  Object.keys(DROPS).forEach(name => {
+    if (!dropIsOpen(name)) return;
+    if (e.target.closest("#" + DROPS[name].fieldId)) return;
+    closeDrop(name);
+  });
 });
 
-/* 主题切换后同步更新本页显示（订阅时立即回调一次，所以首次渲染也会触发） */
-PBTheme.subscribe(() => {
-  renderTheme();
-  if (themePopoverOpen()) renderThemePopover();
-});
+/* 主题切换后同步本页显示（订阅时立即回调一次，所以首次渲染也会触发） */
+PBTheme.subscribe(() => renderDrop("theme"));

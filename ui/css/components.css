@@ -84,15 +84,18 @@
 /* 把底部项推到底 */
 .rail-sp { flex: 1; }
 
-/* ------------------------------ 设置页主题选择器 ------------------------------ */
+/* --------------------------- 设置页下拉选择器 ---------------------------
+   设置页里所有「几个值里挑一个」的行（主题、托管方式）共用这一套：
+   右侧一个触发器，点开是一个选项浮层。之前托管方式用的是两段 chip，
+   与主题的交互不一致，现统一成下拉、共用同一份样式。 */
 
-.theme-field {
+.sel-field {
   position: relative;
   display: inline-block;
   min-width: var(--px-140);
 }
 
-.theme-trigger {
+.sel-trigger {
   display: flex;
   align-items: center;
   gap: var(--px-8);
@@ -108,12 +111,12 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.theme-trigger:hover { background: var(--c-surface-2); }
-.theme-trigger[aria-expanded="true"] { border-color: var(--c-border-focus); }
+.sel-trigger:hover { background: var(--c-surface-2); }
+.sel-trigger[aria-expanded="true"] { border-color: var(--c-border-focus); }
 
-.theme-trigger-label { flex: 1; min-width: 0; text-align: left; white-space: nowrap; }
+.sel-trigger-label { flex: 1; min-width: 0; text-align: left; white-space: nowrap; }
 
-.theme-trigger-chevron {
+.sel-trigger-chevron {
   flex: none;
   width: var(--px-14);
   height: var(--px-14);
@@ -125,9 +128,9 @@
   transition: transform var(--dur-fast) var(--ease);
 }
 
-.theme-trigger[aria-expanded="true"] .theme-trigger-chevron { transform: rotate(180deg); }
+.sel-trigger[aria-expanded="true"] .sel-trigger-chevron { transform: rotate(180deg); }
 
-.theme-popover {
+.sel-popover {
   position: absolute;
   top: calc(100% + var(--px-4));
   left: 0;
@@ -142,9 +145,13 @@
   z-index: var(--z-tip);
 }
 
-.theme-popover.is-open { display: block; }
+.sel-popover.is-open { display: block; }
 
-.theme-opt {
+/* 靠右对齐触发器：选项文字比触发器宽时（如「Cloudflare 临时链接」），
+   浮层向右溢出会戳出卡片边界，改成向左展开 */
+.sel-popover.is-right { left: auto; right: 0; }
+
+.sel-opt {
   display: flex;
   align-items: center;
   gap: var(--px-8);
@@ -161,11 +168,11 @@
   cursor: pointer;
 }
 
-.theme-opt:hover { background: var(--c-surface-3); color: var(--c-text); }
-.theme-opt.is-on { background: var(--c-surface-4); color: var(--c-text); }
+.sel-opt:hover { background: var(--c-surface-3); color: var(--c-text); }
+.sel-opt.is-on { background: var(--c-surface-4); color: var(--c-text); }
 
 /* 选中标记推到行尾 */
-.theme-opt .tick {
+.sel-opt .tick {
   margin-left: auto;
   color: var(--c-text-2);
   opacity: 0;
@@ -179,7 +186,7 @@
   stroke-linejoin: round;
 }
 
-.theme-opt.is-on .tick { opacity: 1; }
+.sel-opt.is-on .tick { opacity: 1; }
 
 /* ============================== 分类页签 ============================== */
 /* 项目页顶部的「Web / Mac」切换。选中态是「浮起的药丸」而不是底部短横线：
