@@ -1,16 +1,16 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "date": "2026-09-22",
   "notes": [
-    "新增「项目仓库」独立页面：GitHub 账号绑定、同步检测、仓库状态从设置页分离",
-    "设置页重构为「GitHub 设置 / 外观设置」两组，列表式行结构，操作控件右侧对齐",
-    "主题设置移入「外观设置」，下拉选项改为纯文字一行展示；左下角主题入口移除",
-    "解绑 / 重新检测按钮改为描边胶囊样式",
-    "修复项目卡片 git 标记不显示的问题"
+    "GitHub 账号管理移入「设置 > GitHub 设置」，与其他设置集中在一处",
+    "解绑 GitHub 账号改用自绘确认弹窗，修复点击「解绑」无反应的问题",
+    "解绑更彻底：可一并退出 gh CLI 登录；已有凭证但未记名时也能解绑",
+    "托管方式改为下拉选择，交互与主题切换一致",
+    "修复应用内绑定账号后凭证无法用于推送的问题"
   ],
-  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.4.0_aarch64.dmg",
-  "dmg_name": "VibeButler_0.4.0_aarch64.dmg",
-  "dmg_size": 5646505,
+  "dmg": "",
+  "dmg_name": "",
+  "dmg_size": 0,
   "min_macos": "12.0",
   "mandatory": false
 }
