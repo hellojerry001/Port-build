@@ -5,9 +5,8 @@
    这一页只负责三件事：把本机 git 环境**读出来**，把身份与偏好**写回去**，
    以及提供外观（主题）设置入口。
 
-   写法与 about.js 一致：状态集中在顶部，渲染一律由 renderSettings() 从状态推导，
-   不做增量改 DOM。唯一的例外是三个输入框 —— 它们是「用户正在编辑」的那份数据，
-   只在首次载入（或保存成功后回填）时才写，否则每敲一个字都会被打回来的旧值覆盖。
+   设置项采用「左侧标题 + 说明 / 右侧操作控件」的列表式行结构；
+   提交身份因为需要同时编辑两个字段，点右侧「编辑」后走弹窗。
    ============================================================================= */
 
 let gsDraft = null;      // 正在编辑的 GitSettings 副本（输入框的真值在这里）
@@ -32,18 +31,41 @@ function draftFromSettings(s) {
 
 function writeDraftToInputs() {
   if (!gsDraft) return;
-  $("gsName").value = gsDraft.name;
-  $("gsEmail").value = gsDraft.email;
   $("gsBranch").value = gsDraft.defaultBranch;
+  $("gsEditName").value = gsDraft.name;
+  $("gsEditEmail").value = gsDraft.email;
 }
 
 function renderIdentity() {
-  const hint = $("gsHint");
-  hint.classList.remove("is-bad");
+  const note = $("gsIdentityNote");
+  note.classList.remove("is-bad");
 
-  const save = document.querySelector('[data-act="gs-save"]');
-  const glob = document.querySelector('[data-act="gs-global"]');
-  [save, glob].forEach(b => { if (b) b.disabled = gsBusy || !gsDraft; });
+  if (gsErr) {
+    note.textContent = gsErr;
+    note.classList.add("is-bad");
+    return;
+  }
+  if (gsOk) {
+    note.textContent = gsOk;
+    return;
+  }
+  if (!gsIdentity) {
+    note.textContent = "读取中…";
+    return;
+  }
+
+  if (gsIdentity.name && gsIdentity.email) {
+    note.textContent = gsIdentity.name + " <" + gsIdentity.email + ">（" +
+                       gsIdentity.nameSource + "）";
+  } else {
+    note.textContent = "还没有提交身份，点击编辑设置";
+    note.classList.add("is-bad");
+  }
+}
+
+function renderEditHint() {
+  const hint = $("gsEditHint");
+  hint.classList.remove("is-bad");
 
   if (gsErr) {
     hint.textContent = gsErr;
@@ -54,18 +76,12 @@ function renderIdentity() {
     hint.textContent = gsOk;
     return;
   }
-  if (!gsIdentity) {
-    hint.textContent = "";
-    return;
-  }
 
-  if (gsIdentity.name && gsIdentity.email) {
-    hint.textContent = "当前生效：" + gsIdentity.name + " <" + gsIdentity.email +
-                       ">（" + gsIdentity.nameSource + "）";
-  } else {
-    hint.textContent = "还没有提交身份：填上点「保存设置」，或点「写入 git 全局配置」同步到命令行";
-    hint.classList.add("is-bad");
-  }
+  const save = document.querySelector('[data-act="gs-edit-save"]');
+  const glob = document.querySelector('[data-act="gs-edit-global"]');
+  [save, glob].forEach(b => { if (b) b.disabled = gsBusy || !gsDraft; });
+
+  hint.textContent = "";
 }
 
 function renderToggles() {
@@ -128,6 +144,7 @@ onInput("gs-field", el => {
   gsErr = "";
   gsOk = "";
   renderIdentity();
+  renderEditHint();
 });
 
 async function saveGitSettings(silent) {
@@ -136,6 +153,7 @@ async function saveGitSettings(silent) {
   gsErr = "";
   gsOk = "";
   renderSettings();
+  renderEditHint();
 
   try {
     const saved = await invoke("save_git_settings", {
@@ -162,10 +180,9 @@ async function saveGitSettings(silent) {
   } finally {
     gsBusy = false;
     renderSettings();
+    renderEditHint();
   }
 }
-
-on("gs-save", () => saveGitSettings(false));
 
 on("gs-toggle", el => {
   if (!gsDraft || gsBusy) return;
@@ -182,12 +199,13 @@ on("gs-toggle", el => {
   });
 });
 
-on("gs-global", async () => {
+async function applyGitIdentity() {
   if (!gsDraft || gsBusy) return;
   gsBusy = true;
   gsErr = "";
   gsOk = "";
   renderSettings();
+  renderEditHint();
   try {
     gsOk = await invoke("apply_git_identity", { name: gsDraft.name, email: gsDraft.email });
     await loadGitSettings();
@@ -198,6 +216,44 @@ on("gs-global", async () => {
   }
   gsBusy = false;
   renderSettings();
+  renderEditHint();
+}
+
+/* ============================== 提交身份编辑弹窗 ============================== */
+
+function isGsEditOpen() { return $("gsEditModal").classList.contains("is-open"); }
+
+function openGsEdit() {
+  if (!gsDraft) return;
+  gsErr = "";
+  gsOk = "";
+  writeDraftToInputs();
+  renderEditHint();
+  $("gsEditModal").classList.add("is-open");
+}
+
+function closeGsEdit() {
+  $("gsEditModal").classList.remove("is-open");
+  gsErr = "";
+  gsOk = "";
+  renderSettings();
+}
+
+on("gs-edit", () => openGsEdit());
+on("gs-edit-close", () => closeGsEdit());
+on("gs-edit-cancel", () => closeGsEdit());
+on("gs-edit-save", async () => {
+  const ok = await saveGitSettings(false);
+  if (ok) closeGsEdit();
+});
+on("gs-edit-global", () => applyGitIdentity());
+
+/* 弹窗内输入框按 Enter 直接保存 */
+document.getElementById("gsEditModal").addEventListener("keydown", e => {
+  if (e.key === "Enter" && isGsEditOpen()) {
+    e.preventDefault();
+    document.querySelector('[data-act="gs-edit-save"]').click();
+  }
 });
 
 /* ============================== 主题选择器 ============================== */

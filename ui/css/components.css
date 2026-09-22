@@ -331,6 +331,13 @@
 
 .btn.is-primary:hover { background: var(--c-primary-bg-hover); }
 
+/* 小号按钮：设置行右侧的「编辑」「导入」等轻量操作 */
+.btn.is-small {
+  padding: var(--px-3) var(--px-9);
+  border-radius: var(--r-6);
+  font-size: var(--fs-11);
+}
+
 /* 危险操作 */
 .btn.is-danger:hover {
   color: var(--c-text-inv);
@@ -359,6 +366,13 @@
 }
 
 .input:focus { border-color: var(--c-border-focus); }
+
+.input.is-small {
+  padding: var(--px-4) var(--px-8);
+  font-size: var(--fs-12);
+  min-width: var(--px-90);
+  width: auto;
+}
 
 /* 输入框 + 尾部按钮并排 */
 .input-row {
@@ -574,12 +588,25 @@
 .overlay.is-open { display: flex; }
 
 .modal {
+  position: relative;
   background: var(--c-modal);
   border: var(--hairline) solid var(--c-border-float);
   box-shadow: var(--c-shadow-float);
   border-radius: var(--r-14);
   width: var(--modal-w);
   padding: var(--px-20);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--px-10);
+  margin-bottom: var(--px-14);
+}
+
+.modal-head .modal-title {
+  margin-bottom: 0;
+  flex: 1;
 }
 
 .modal.is-wide { width: var(--modal-w-wide); }
@@ -590,6 +617,30 @@
   margin-bottom: var(--px-14);
 }
 
+/* 弹窗关闭按钮（×）：圆形、透明底、hover 显形 */
+.icon-btn {
+  width: var(--px-24);
+  height: var(--px-24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--c-text-2);
+  font-size: var(--fs-18);
+  line-height: 1;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.icon-btn:hover {
+  background: var(--c-surface-3);
+  color: var(--c-text);
+}
+
+.modal-head .icon-btn { margin: calc(var(--px-2) * -1) calc(var(--px-2) * -1) 0 0; }
+
 .modal-foot {
   display: flex;
   align-items: center;
@@ -597,6 +648,8 @@
   gap: var(--px-8);
   margin-top: var(--px-16);
 }
+
+.modal-foot-gap { flex: 1; }
 
 .modal-status {
   margin-right: auto;
@@ -1167,6 +1220,46 @@
 }
 
 .set-card:last-child { margin-bottom: 0; }
+
+/* 列表式设置卡：没有独立的 head/body/foot，整组由 .set-row 拼成 */
+.set-card.is-list { padding: 0 var(--px-16); }
+
+.set-card.is-list .set-row {
+  align-items: center;
+  margin: 0 calc(var(--px-16) * -1);
+  padding: var(--px-13) var(--px-16);
+}
+
+.set-card.is-list .set-row:first-child { padding-top: var(--px-13); }
+.set-card.is-list .set-row:last-child  { padding-bottom: var(--px-13); }
+
+.set-card.is-list .set-row-label {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+}
+
+.set-card.is-list .set-row-note {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  margin-top: var(--px-3);
+  line-height: var(--lh-15);
+}
+
+/* 卡片内行与行之间的 1px 分隔线 */
+.set-divider {
+  height: var(--hairline);
+  background: var(--c-surface-2);
+  margin: 0 calc(var(--px-16) * -1);
+}
+
+/* 可点击行：整行都能点，hover 给一点反馈 */
+.set-row.is-link {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.set-card.is-list .set-row.is-link:hover { background: var(--c-surface-2); }
 
 /* 卡片无内边距，间距全由行自己给，首末行才和卡片边缘对齐 */
 .set-head {
