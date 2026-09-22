@@ -15,6 +15,15 @@ let gsBusy = false;      // 保存 / 写全局配置进行中
 let gsErr = "";          // 失败原因（红字）
 let gsOk = "";           // 成功回执（灰字）
 let gsIdentity = null;   // 当前生效的提交身份 {name, email, nameSource}
+let gitStatus = null;    // 最近一次 git_status 的完整结果
+
+/* GitHub 账号绑定（gh CLI 一键 / OAuth Device Flow 双轨） */
+let ghClientId = "";     // 用户自填的 Client ID（非机密）；留空则用 App 内置的
+let ghLogin = null;      // 已绑定账号的用户名；null = 未记名
+let ghHasCred = false;   // 钥匙串里有没有可推送的 github.com 凭证
+let ghDevice = null;     // 当前设备授权会话 { deviceCode, userCode, uri, interval }
+let ghTimer = null;      // 授权轮询定时器
+let ghCli = null;        // gh CLI 可用状态 { installed, loggedIn, canDeviceFlow }
 
 /* ============================== 渲染 ============================== */
 
@@ -140,8 +149,60 @@ function renderToggles() {
   set($("hsAutoPages"), !!(gsDraft && gsDraft.ghAutoPages));
 }
 
+function renderGhAccount() {
+  const idInput = $("ghClientId");
+  if (idInput && document.activeElement !== idInput) idInput.value = ghClientId;
+
+  const box = $("ghAccountBody");
+  if (!box) return;
+
+  if (ghLogin) {
+    box.innerHTML =
+      '<div class="gh-row gh-bound">' +
+        '<span class="gh-dot"></span>' +
+        '<div class="gh-main">' +
+          '<div class="gh-name">已绑定 @' + esc(ghLogin) + "</div>" +
+          '<div class="gh-note">推送时会用这个账号的凭证' +
+            ' · <a class="gh-inline-link" href="https://github.com/settings/applications"' +
+            ' target="_blank" rel="noopener">在 GitHub 上管理授权</a></div>' +
+        "</div>" +
+        '<button class="btn is-outline is-danger" data-act="gh-unbind">解绑</button>' +
+      "</div>";
+    return;
+  }
+
+  if (ghHasCred) {
+    // 有凭证但不知道属于谁：也允许解绑 —— 否则这份凭证在这页上没有任何出口
+    box.innerHTML =
+      '<div class="gh-row gh-partial">' +
+        '<span class="gh-dot"></span>' +
+        '<div class="gh-main">' +
+          '<div class="gh-name">已有推送凭证</div>' +
+          '<div class="gh-note">git 用它推送没问题，只是还没记下属于哪个账号' +
+            ' · <a class="gh-inline-link" href="https://github.com/settings/applications"' +
+            ' target="_blank" rel="noopener">在 GitHub 上管理授权</a></div>' +
+        "</div>" +
+        '<button class="btn is-outline is-danger" data-act="gh-unbind">解绑</button>' +
+        '<button class="btn is-ghost" data-act="gh-bind">重新绑定</button>' +
+        '<button class="btn is-primary" data-act="gh-claim">认领账号</button>' +
+      "</div>";
+    return;
+  }
+
+  box.innerHTML =
+    '<div class="gh-row gh-unbound">' +
+      '<span class="gh-dot"></span>' +
+      '<div class="gh-main">' +
+        '<div class="gh-name">未绑定 GitHub 账号</div>' +
+        '<div class="gh-note">绑定后才能把项目推送到 GitHub</div>' +
+      "</div>" +
+      '<button class="btn is-primary" data-act="gh-bind">绑定账号</button>' +
+    "</div>";
+}
+
 function renderSettings() {
   renderIdentity();
+  renderGhAccount();
   renderToggles();
   syncHostingRows();
   renderDrop("theme");
@@ -154,16 +215,21 @@ async function loadGitSettings() {
   gsErr = "";
   try {
     const s = await invoke("git_status");
+    gitStatus = s;
     gsIdentity = {
       name: s.name,
       email: s.email,
       nameSource: s.nameSource,
     };
+    ghClientId = (s.settings && s.settings.githubClientId) || "";
+    ghLogin = s.githubLogin || null;
+    ghHasCred = !!s.hasGithubCred;
     if (!gsDraft) {
       gsDraft = draftFromSettings(s.settings);
       writeDraftToInputs();
     }
   } catch (e) {
+    gitStatus = null;
     gsIdentity = null;
     gsErr = String(e);
   }
@@ -422,3 +488,350 @@ document.addEventListener("click", e => {
 
 /* 主题切换后同步本页显示（订阅时立即回调一次，所以首次渲染也会触发） */
 PBTheme.subscribe(() => renderDrop("theme"));
+
+/* ============================== GitHub 账号绑定 ============================== */
+
+function closeGhTimer() {
+  if (ghTimer) { clearTimeout(ghTimer); ghTimer = null; }
+}
+
+function fallbackCopy(t) {
+  const ta = document.createElement("textarea");
+  ta.value = t;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (_) { }
+  document.body.removeChild(ta);
+}
+
+function copyText(t) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).catch(() => fallbackCopy(t));
+      return;
+    }
+  } catch (_) { }
+  fallbackCopy(t);
+}
+
+async function openGhBind() {
+  $("ghBindModal").classList.add("is-open");
+  try { ghCli = await invoke("gh_cli_status"); }
+  catch (_) { ghCli = { installed: false, loggedIn: false, canDeviceFlow: true }; }
+
+  if (ghCli.loggedIn) { renderGhBindCli(); return; }
+  if (ghCli.installed) { renderGhBindCliLogin(); return; }
+  if (!ghCli.canDeviceFlow) renderGhBindAskId();
+  else startDeviceFlow();
+}
+
+function renderGhBindCli() {
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label">检测到 gh 已登录</div>' +
+      '<div class="field-hint">直接用它的登录态绑定，不用再开浏览器授权。</div>' +
+      ghCredNotice() +
+    "</div>";
+  $("ghBindFoot").innerHTML =
+    '<button class="btn is-ghost" data-act="gh-bind-close">取消</button>' +
+    '<button class="btn is-primary" data-act="gh-bind-cli">立即绑定</button>';
+}
+
+function renderGhBindCliLogin() {
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label">先用 gh 登录一次</div>' +
+      '<div class="field-hint">在终端跑 <code class="gp-cmd">gh auth login</code>，' +
+      "完成后回到这里点「继续」。</div>" +
+      ghCredNotice() +
+    "</div>";
+  $("ghBindFoot").innerHTML =
+    '<button class="btn is-ghost" data-act="gh-bind-close">取消</button>' +
+    (ghCli && ghCli.canDeviceFlow
+      ? '<button class="btn is-ghost" data-act="gh-browser">改用浏览器授权</button>'
+      : "") +
+    '<button class="btn is-primary" data-act="gh-bind-cli">继续</button>';
+}
+
+async function doGhBindCli() {
+  try {
+    const login = await invoke("gh_bind_cli");
+    ghLogin = login || ghLogin;
+    closeGhBind();
+    renderGhAccount();
+    loadGitSettings();
+    toast("已绑定 GitHub 账号" + (ghLogin ? " @" + ghLogin : ""));
+  } catch (e) { toast(String(e)); }
+}
+
+function renderGhBindAskId() {
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label">先填 OAuth App 的 Client ID</div>' +
+      '<div class="field">' +
+        '<input class="input" id="ghClientIdModal" value="' + esc(ghClientId) + '"' +
+        ' placeholder="Client ID" autocomplete="off" spellcheck="false" />' +
+      "</div>" +
+      '<div class="field-hint">在 ' +
+        '<a href="https://github.com/settings/developers" target="_blank" rel="noopener">' +
+        "github.com/settings/developers</a> 创建 OAuth App，回调地址留空即可。</div>" +
+      ghCredNotice() +
+    "</div>";
+  $("ghBindFoot").innerHTML =
+    '<button class="btn is-ghost" data-act="gh-bind-close">取消</button>' +
+    '<button class="btn is-primary" data-act="gh-start">下一步</button>';
+}
+
+async function ghStart() {
+  const v = ($("ghClientIdModal") || $("ghClientId")).value.trim();
+  if (!v) { toast("请先填 Client ID"); return; }
+  try {
+    await invoke("save_gh_client_id", { clientId: v });
+    ghClientId = v;
+    renderGhAccount();
+  } catch (e) { toast(String(e)); return; }
+  startDeviceFlow();
+}
+
+async function startDeviceFlow() {
+  closeGhTimer();
+  $("ghBindFoot").innerHTML =
+    '<button class="btn is-ghost" data-act="gh-bind-close">取消</button>';
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label">正在申请授权码…</div>' +
+      '<div class="gh-wait">' + UI.spinner("连接 GitHub") + "</div>" +
+    "</div>";
+
+  let code;
+  try {
+    code = await invoke("gh_device_code", { clientId: ghClientId, scope: "repo" });
+  } catch (e) {
+    $("ghBindBody").innerHTML =
+      '<div class="gh-step">' +
+        '<div class="gh-step-label is-bad">申请授权码失败</div>' +
+        '<div class="field-hint is-bad">' + esc(String(e)) + "</div>" +
+      "</div>";
+    $("ghBindFoot").innerHTML =
+      '<button class="btn is-ghost" data-act="gh-bind-close">关闭</button>' +
+      '<button class="btn is-primary" data-act="gh-restart">重新获取</button>';
+    return;
+  }
+
+  ghDevice = {
+    deviceCode: code.deviceCode,
+    userCode: code.userCode,
+    uri: code.verificationUri,
+    interval: Math.max(1, code.interval || 5),
+  };
+  renderGhBindCode();
+  pollDevice();
+}
+
+function renderGhBindCode() {
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label">在浏览器里登录并输入下面的码</div>' +
+      '<div class="gh-code" id="ghCode">' + esc(ghDevice.userCode) + "</div>" +
+      '<div class="gh-code-actions">' +
+        '<button class="btn is-ghost" data-act="gh-copy-code">复制</button>' +
+        '<button class="btn is-ghost" data-act="gh-open-uri">打开验证页</button>' +
+      "</div>" +
+      '<div class="gh-wait" id="ghWait">' + UI.spinner("正在等待你在浏览器里授权…") + "</div>" +
+      ghCredNotice() +
+    "</div>";
+}
+
+async function pollDevice() {
+  if (!ghDevice) return;
+  let r;
+  try {
+    r = await invoke("gh_device_poll", { clientId: ghClientId, deviceCode: ghDevice.deviceCode });
+  } catch (e) {
+    const w = $("ghWait");
+    if (w) w.innerHTML = '<div class="field-hint is-bad">轮询失败：' + esc(String(e)) + "</div>";
+    return;
+  }
+
+  if (r.status === "pending") {
+    ghTimer = setTimeout(pollDevice, ghDevice.interval * 1000);
+    return;
+  }
+
+  closeGhTimer();
+
+  if (r.status === "authorized") {
+    ghLogin = r.login || ghLogin;
+    closeGhBind();
+    renderGhAccount();
+    loadGitSettings();
+    toast("已绑定 GitHub 账号" + (ghLogin ? " @" + ghLogin : ""));
+    return;
+  }
+
+  $("ghBindBody").innerHTML =
+    '<div class="gh-step">' +
+      '<div class="gh-step-label is-bad">' + esc(r.error || "授权未通过") + "</div>" +
+    "</div>";
+  $("ghBindFoot").innerHTML =
+    '<button class="btn is-ghost" data-act="gh-bind-close">关闭</button>' +
+    '<button class="btn is-primary" data-act="gh-restart">重新获取</button>';
+}
+
+function closeGhBind() {
+  closeGhTimer();
+  const m = $("ghBindModal");
+  if (m) m.classList.remove("is-open");
+}
+
+function ghCredNotice() {
+  if (!ghHasCred) return "";
+  return '<div class="field-hint is-warn">本机钥匙串里已有一份能推送的凭证，继续绑定会替换它。' +
+         "只是想记下它属于哪个账号的话，关掉这里改点「认领账号」。</div>";
+}
+
+async function doGhClaim() {
+  try {
+    const login = await invoke("gh_claim_existing");
+    if (!login) { toast("没能认领到账号"); return; }
+    ghLogin = login;
+    renderGhAccount();
+    toast("已认领账号 @" + login);
+  } catch (e) { toast(String(e)); }
+}
+
+/* ============================== 解绑（自绘二次确认） ==============================
+   这里原来是 window.confirm —— macOS 上 Tauri 用的是 WKWebView，它没有实现
+   原生 confirm 面板，`if (!confirm(...)) return` 会静默拿到 false，
+   于是点「解绑」什么都没发生。改成和「删除项目」同一套自绘弹窗。 */
+
+let ubBusy = false;   // 解绑请求进行中：期间不再响应按钮与关闭
+let ubErr = "";       // 失败原因（留在弹窗里，按钮变「重试」）
+
+function renderGhUnbind() {
+  const who = ghLogin ? "@" + ghLogin : "这台机器上的 GitHub 推送凭证";
+  $("ubWho").textContent = "解绑 " + who;
+  $("ubWhat").textContent = ghLogin
+    ? "会删除系统钥匙串里的 github.com 凭证，并清掉本应用记下的账号名。" +
+      "项目文件、提交记录与 GitHub 上的仓库都不受影响。"
+    : "会删除系统钥匙串里的 github.com 凭证。项目文件、提交记录与 GitHub 上的仓库都不受影响。";
+}
+
+/* 提示随「是否一起退 gh CLI」变化 */
+function syncGhUnbindTip() {
+  if (ubErr) { $("ubTip").textContent = ubErr; return; }
+
+  const cliOn = !!(ghCli && ghCli.loggedIn);
+  if (!cliOn) {
+    $("ubTip").textContent = "随时可以重新绑定，还是同一个 GitHub 账号。";
+    return;
+  }
+  if ($("ubCli").checked) {
+    $("ubTip").textContent = "会一并跑 gh auth logout github.com，之后终端里的 gh 也要重新登录。";
+    return;
+  }
+  // helper 指向 gh 时要点破：不退 gh 的话 git 照样能拿到 token 推送
+  const helper = (gitStatus && gitStatus.helper) || "";
+  $("ubTip").textContent = /gh/i.test(helper)
+    ? "本机 gh CLI 仍处于登录状态，而 credential.helper 正是 " + helper +
+      " —— 不一起退出的话，git 推送仍会拿它的凭证。"
+    : "本机 gh CLI 仍处于登录状态，不一起退出的话，下次可以一键绑定回同一账号。";
+}
+
+async function openGhUnbind() {
+  ubBusy = false;
+  ubErr = "";
+  renderGhUnbind();
+  $("ubCli").checked = false;
+  $("ubCliRow").hidden = true;      // 先按「没有 gh」渲染，拿到状态再决定要不要露出来
+  $("ubBtn").disabled = false;
+  $("ubCancel").disabled = false;
+  $("ubBtn").textContent = "解绑";
+  $("ubTip").textContent = "正在读本机 gh 登录状态…";
+  openModal("ghUnbindModal");
+  $("ubCancel").focus();
+
+  try { ghCli = await invoke("gh_cli_status"); } catch (_) { /* 读不到就当没装 */ }
+  if (modalOpen("ghUnbindModal")) {
+    $("ubCliRow").hidden = !(ghCli && ghCli.loggedIn);
+    syncGhUnbindTip();
+  }
+}
+
+function closeGhUnbind() {
+  if (ubBusy) return;
+  closeModal("ghUnbindModal");
+  ubErr = "";
+}
+
+async function confirmGhUnbind() {
+  if (ubBusy) return;
+  const logoutGhCli = !$("ubCliRow").hidden && $("ubCli").checked;
+
+  ubBusy = true;
+  ubErr = "";
+  $("ubBtn").disabled = true;
+  $("ubCancel").disabled = true;
+  $("ubBtn").textContent = "解绑中…";
+  $("ubTip").textContent = "正在删除钥匙串里的凭证…";
+
+  try {
+    const r = await invoke("gh_unbind", { logoutGhCli });
+    ubBusy = false;
+    closeModal("ghUnbindModal");
+
+    // 解绑后本机立刻变成「未绑定」：先把本地状态清掉再重拉，避免闪回已绑定态
+    ghLogin = null;
+    ghHasCred = false;
+    renderGhAccount();
+    try { ghCli = await invoke("gh_cli_status"); } catch (_) { /* 状态读不到不影响解绑结果 */ }
+    await loadGitSettings();
+
+    let msg = (r && r.message) || "已解绑";
+    if (r && r.ghCliError) msg += "；gh CLI 未退出：" + r.ghCliError;
+    // 托管方式还指着 GitHub 的话要点出来，否则下次发布会直接失败
+    const hosting = (gitStatus && gitStatus.settings && gitStatus.settings.hosting) || "";
+    if (hosting === "github") msg += "。托管方式仍是 GitHub Pages，发布前需要重新绑定账号";
+    toast(msg);
+  } catch (e) {
+    // 失败不关弹窗：把原因留在原处，改完直接重试
+    ubBusy = false;
+    ubErr = String(e);
+    $("ubBtn").disabled = false;
+    $("ubCancel").disabled = false;
+    $("ubBtn").textContent = "重试";
+    syncGhUnbindTip();
+  }
+}
+
+on("gh-save-id", async () => {
+  const v = $("ghClientId").value.trim();
+  try {
+    await invoke("save_gh_client_id", { clientId: v });
+    ghClientId = v;
+    toast(v ? "已保存 Client ID" : "已清除 Client ID");
+  } catch (e) { toast(String(e)); }
+});
+
+on("gh-bind", () => openGhBind());
+on("gh-unbind", () => openGhUnbind());
+on("gh-unbind-close", () => closeGhUnbind());
+on("gh-unbind-confirm", () => confirmGhUnbind());
+on("gh-claim", () => doGhClaim());
+on("gh-bind-close", () => closeGhBind());
+onChange("gh-unbind-cli", () => syncGhUnbindTip());
+on("gh-start", () => ghStart());
+on("gh-restart", () => startDeviceFlow());
+on("gh-bind-cli", () => doGhBindCli());
+on("gh-browser", () => {
+  if (ghCli && ghCli.canDeviceFlow) startDeviceFlow();
+  else renderGhBindAskId();
+});
+on("gh-copy-code", () => {
+  if (ghDevice) { copyText(ghDevice.userCode); toast("已复制授权码"); }
+});
+on("gh-open-uri", () => {
+  if (ghDevice) openLink(ghDevice.uri);
+});

@@ -76,36 +76,6 @@
   <section class="page" id="page-repos">
     <div class="set-card">
       <div class="set-head">
-        <div class="set-title">GitHub 账号</div>
-        <div class="set-note">已装 gh 且登录过 → 一键绑定；否则走浏览器授权，不用复制令牌</div>
-      </div>
-      <div class="set-body">
-        <div class="gh-account" id="ghAccountBody"></div>
-
-        <!-- 高级项：默认用 App 内置的 Client ID，普通用户永远不用碰 -->
-        <details class="gh-adv">
-          <summary class="gh-adv-sum">高级：用自己的 OAuth App</summary>
-          <div class="gh-adv-body">
-            <div class="field-row">
-              <div class="field is-grow">
-                <label class="field-label" for="ghClientId">OAuth App Client ID</label>
-                <input class="input" type="text" id="ghClientId"
-                       placeholder="留空则用 App 内置的 Client ID"
-                       autocomplete="off" spellcheck="false" />
-              </div>
-              <button class="btn is-ghost" data-act="gh-save-id">保存</button>
-            </div>
-            <div class="field-hint">
-              只有自行编译、想换成自己的 OAuth App 时才需要填。
-              <a href="https://github.com/settings/developers" target="_blank" rel="noopener">去创建 →</a>
-            </div>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <div class="set-card">
-      <div class="set-head">
         <div class="set-title">GitHub 同步</div>
         <div class="set-aside">
           <span class="set-ready" id="gsReady">检测中…</span>
@@ -140,6 +110,37 @@
     <!-- GitHub 设置 -->
     <div class="set-section">
       <div class="set-section-title">GitHub 设置</div>
+
+      <!-- GitHub 账号：绑定 / 解绑 / 高级 OAuth App -->
+      <div class="set-card">
+        <div class="set-head">
+          <div class="set-title">GitHub 账号</div>
+          <div class="set-note">已装 gh 且登录过 → 一键绑定；否则走浏览器授权，不用复制令牌</div>
+        </div>
+        <div class="set-body">
+          <div class="gh-account" id="ghAccountBody"></div>
+
+          <!-- 高级项：默认用 App 内置的 Client ID，普通用户永远不用碰 -->
+          <details class="gh-adv">
+            <summary class="gh-adv-sum">高级：用自己的 OAuth App</summary>
+            <div class="gh-adv-body">
+              <div class="field-row">
+                <div class="field is-grow">
+                  <label class="field-label" for="ghClientId">OAuth App Client ID</label>
+                  <input class="input" type="text" id="ghClientId"
+                         placeholder="留空则用 App 内置的 Client ID"
+                         autocomplete="off" spellcheck="false" />
+                </div>
+                <button class="btn is-ghost" data-act="gh-save-id">保存</button>
+              </div>
+              <div class="field-hint">
+                只有自行编译、想换成自己的 OAuth App 时才需要填。
+                <a href="https://github.com/settings/developers" target="_blank" rel="noopener">去创建 →</a>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
 
       <div class="set-card is-list">
         <!-- 提交身份：只展示当前值，编辑走弹窗 -->
