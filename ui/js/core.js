@@ -130,4 +130,23 @@ function bindDelegates() {
       if (fn) fn(el, e);
     });
   });
+  bindExternalLinks();
+}
+
+/* ------------------------------ 外链 ------------------------------ */
+/* Tauri 里页面是内嵌的 asset:// 文档，<a target="_blank"> 既不会起新窗口、
+   也不会唤起系统浏览器——点了**完全没有反应**。这里统一拦下来交给后端
+   open_url（macOS 走 `open`），全应用的外链只在这一个地方生效：
+   写 <a href="https://…"> 即可，不必再各自挂事件。
+   只认 http/https 绝对地址；站内锚点（#xxx）与相对路径一律放行。 */
+function bindExternalLinks() {
+  document.addEventListener("click", e => {
+    if (e.defaultPrevented) return;
+    const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+    if (!a) return;
+    const href = (a.getAttribute("href") || "").trim();
+    if (!/^https?:\/\//i.test(href)) return;
+    e.preventDefault();
+    openLink(href);
+  });
 }
