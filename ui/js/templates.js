@@ -340,7 +340,6 @@ async function enterTemplates() {
   const grid = $("tplLibGrid");
   grid.innerHTML = UI.empty(UI.spinner("正在读取模板…"), { span: true, compact: true });
   $("tplLibCount").textContent = "";
-  loadTplRoot();
 
   try {
     await loadScaffolds(true);
@@ -349,13 +348,6 @@ async function enterTemplates() {
     return;
   }
   renderTplLibrary();
-}
-
-/* 说明行里的模板目录：后端会把目录建出来并回传绝对路径，拿不到就保留默认文案 */
-async function loadTplRoot() {
-  try {
-    $("tplLibRoot").textContent = await invoke("scaffold_root_path");
-  } catch (_) {}
 }
 
 function renderTplLibrary() {

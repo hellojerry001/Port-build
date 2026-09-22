@@ -622,20 +622,6 @@
 /* 卡片操作行钉在底部，说明长短不同也不会让按钮错位 */
 .tpl-lib-card .card-ops { margin-top: auto; padding-top: var(--px-14); }
 
-/* 页面底部说明行：模板从哪来、放什么文件 */
-.tpl-lib-note {
-  color: var(--c-text-3);
-  font-size: var(--fs-11);
-  line-height: var(--lh-17);
-  margin-top: var(--px-16);
-}
-
-.tpl-lib-note code {
-  font-family: var(--ff-mono);
-  color: var(--c-text-2);
-  word-break: break-all;
-}
-
 /* ============================== 新增模板 ============================== */
 /* 来源路径：跟在两个选择按钮后面，长了就省略号截断（title 里看全文） */
 .src-path {
