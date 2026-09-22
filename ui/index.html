@@ -69,11 +69,9 @@
     </div>
   </section>
 
-  <!-- ============================== 设置 ============================== -->
-  <!-- GitHub 同步：这一页是「项目一键提交 GitHub」的前置 ——
-       先把 git 环境与提交身份确认好，真到提交那一步就不该再让用户填任何东西 -->
-  <section class="page" id="page-settings">
-    <!-- GitHub 账号放第一张卡：没绑账号，后面环境/身份配得再好也推不了 -->
+  <!-- ============================== 项目仓库 ============================== -->
+  <!-- GitHub 同步检测与项目仓库列表单独成页管理，不再挤在设置页里 -->
+  <section class="page" id="page-repos">
     <div class="set-card">
       <div class="set-head">
         <div class="set-title">GitHub 账号</div>
@@ -115,6 +113,29 @@
       <div class="set-checks" id="gsChecks"></div>
     </div>
 
+    <div class="set-card">
+      <div class="set-head">
+        <div class="set-title">项目仓库</div>
+        <div class="set-note" id="gsRepoNote">逐个项目读本机仓库状态</div>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>项目</th><th>分支</th><th>远端</th>
+            <th class="col-num"
+                title="未提交：git status 里待提交的条目数">未提交</th>
+            <th class="col-num"
+                title="未推送：本地领先 origin/分支 的提交数。不联网刷新远端缓存，缓存过期时可能偏大">未推送</th>
+          </tr>
+        </thead>
+        <tbody id="gsRepoBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================== 设置 ============================== -->
+  <!-- 设置页只保留提交身份与默认值，GitHub 同步相关内容已拆到「项目仓库」页 -->
+  <section class="page" id="page-settings">
     <div class="set-card">
       <div class="set-head">
         <div class="set-title">提交身份</div>
@@ -175,26 +196,6 @@
       </div>
     </div>
 
-    <div class="set-card">
-      <div class="set-head">
-        <div class="set-title">项目仓库</div>
-        <div class="set-note" id="gsRepoNote">逐个项目读本机仓库状态</div>
-      </div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>项目</th><th>分支</th><th>远端</th>
-            <th class="col-num"
-                title="未提交：git status 里待提交的条目数">未提交</th>
-            <!-- 不联网刷新远端缓存：设置页不该为了一个数字去发网络请求。
-                 代价是本地 origin/分支 引用过期时这个数会偏大，说清楚比假装准确好 -->
-            <th class="col-num"
-                title="未推送：本地领先 origin/分支 的提交数。不联网刷新远端缓存，缓存过期时可能偏大">未推送</th>
-          </tr>
-        </thead>
-        <tbody id="gsRepoBody"></tbody>
-      </table>
-    </div>
   </section>
 
   <!-- ============================== 关于 ============================== -->
@@ -540,6 +541,7 @@
 <script src="js/templates.js"></script>
 <script src="js/publish.js"></script>
 <script src="js/about.js"></script>
+<script src="js/repos.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/push.js"></script>
 <script src="js/main.js"></script>

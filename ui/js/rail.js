@@ -12,6 +12,13 @@ const NAV = [
           '<rect x="3.4" y="11.2" width="5.4" height="5.4" rx="1.5"/><rect x="11.2" y="11.2" width="5.4" height="5.4" rx="1.5"/>',
   },
   {
+    key: "repos", label: "项目仓库", bot: false,
+    icon: '<rect x="3.4" y="3.4" width="6.2" height="6.2" rx="1.4"/>' +
+          '<path d="M12.4 6.2h1.4a1.4 1.4 0 0 1 1.4 1.4v8a1.4 1.4 0 0 1-1.4 1.4H5.2a1.4 1.4 0 0 1-1.4-1.4v-1.4"/>' +
+          '<circle cx="6.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/>' +
+          '<path d="M6.5 8.6v5.8"/><circle cx="6.5" cy="14.4" r="1.2" fill="currentColor" stroke="none"/>',
+  },
+  {
     key: "radar", label: "端口雷达", bot: false,
     icon: '<path d="M3.6 8.4a9 9 0 0 1 12.8 0"/><path d="M6.4 11.6a5 5 0 0 1 7.2 0"/>' +
           '<circle cx="10" cy="15.4" r="1.4" fill="currentColor" stroke="none"/>',
@@ -41,12 +48,13 @@ const NAV = [
 
 /* 页面 key → [标题, 副标题] */
 const PAGES = {
-  projects:  ["项目管理", "VibeButler · 项目 & 端口管理"],
-  radar:     ["端口雷达", "本机监听端口实时一览"],
-  publishes: ["发布记录", "Cloudflare 临时发布与认领"],
-  templates: ["模板库",   "内置脚手架模板"],
-  settings:  ["设置",     "GitHub 同步与提交身份"],
-  about:     ["关于",     "版本信息与更新"],
+  projects:  ["项目管理",   "VibeButler · 项目 & 端口管理"],
+  repos:     ["项目仓库",   "GitHub 同步与仓库状态"],
+  radar:     ["端口雷达",   "本机监听端口实时一览"],
+  publishes: ["发布记录",   "Cloudflare 临时发布与认领"],
+  templates: ["模板库",     "内置脚手架模板"],
+  settings:  ["设置",       "提交身份与默认行为"],
+  about:     ["关于",       "版本信息与更新"],
 };
 
 /* 主题三态各一个图标：按钮上用「当前选择」的那个，一眼能看出现在是什么模式 */
@@ -136,6 +144,8 @@ function goPage(key) {
   $("pgTitle").textContent = PAGES[key][0];
   $("pgSub").textContent = PAGES[key][1];
   if (key === "publishes") refreshPublishes();
+  // 进项目仓库页时补数据（repos.js 定义；用 typeof 挡住加载顺序问题）
+  if (key === "repos" && typeof enterRepos === "function") enterRepos();
   // 进设置页时补数据（settings.js 定义；用 typeof 挡住加载顺序问题）
   if (key === "settings" && typeof enterSettings === "function") enterSettings();
   // 进关于页时补数据并清掉提示圆点（about.js 定义；用 typeof 挡住加载顺序问题）
