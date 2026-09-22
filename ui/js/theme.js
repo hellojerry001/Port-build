@@ -16,7 +16,7 @@
 (function () {
   var KEY = "pb-theme";
   var MODES = ["system", "light", "dark"];
-  var LABEL = { system: "跟随系统", light: "浅色", dark: "深色" };
+  var LABEL = { system: "跟随系统", light: "浅色模式", dark: "深色模式" };
   var mq = window.matchMedia("(prefers-color-scheme: dark)");
 
   var mode = "dark";

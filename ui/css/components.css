@@ -107,7 +107,7 @@
 .theme-field {
   position: relative;
   display: inline-block;
-  min-width: var(--px-110);
+  min-width: var(--px-140);
 }
 
 .theme-trigger {
@@ -129,25 +129,7 @@
 .theme-trigger:hover { background: var(--c-surface-2); }
 .theme-trigger[aria-expanded="true"] { border-color: var(--c-border-focus); }
 
-.theme-trigger-icon {
-  flex: none;
-  width: var(--icon);
-  height: var(--icon);
-  color: var(--c-text-2);
-}
-
-.theme-trigger-icon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: var(--icon-stroke);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.theme-trigger-label { flex: 1; min-width: 0; text-align: left; }
+.theme-trigger-label { flex: 1; min-width: 0; text-align: left; white-space: nowrap; }
 
 .theme-trigger-chevron {
   flex: none;
@@ -194,7 +176,11 @@
 .theme-opt:hover { background: var(--c-surface-3); color: var(--c-text); }
 .theme-opt.is-on { background: var(--c-surface-4); color: var(--c-text); }
 
-.theme-opt svg {
+/* 选中标记推到行尾 */
+.theme-opt .tick {
+  margin-left: auto;
+  color: var(--c-text-2);
+  opacity: 0;
   width: var(--menu-icon);
   height: var(--menu-icon);
   flex: none;
@@ -203,13 +189,6 @@
   stroke-width: var(--icon-stroke);
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* 选中标记推到行尾 */
-.theme-opt .tick {
-  margin-left: auto;
-  color: var(--c-text-2);
-  opacity: 0;
 }
 
 .theme-opt.is-on .tick { opacity: 1; }

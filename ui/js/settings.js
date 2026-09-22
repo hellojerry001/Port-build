@@ -97,7 +97,6 @@ function renderToggles() {
 
 function renderTheme() {
   const m = PBTheme.mode();
-  $("themeTriggerIcon").innerHTML = themeSvg(THEME_ICON[m]);
   $("themeTriggerLabel").textContent = PBTheme.LABEL[m];
 }
 
@@ -265,7 +264,6 @@ function renderThemePopover() {
   $("themePopover").innerHTML = PBTheme.MODES.map(m =>
     '<button class="' + cls("theme-opt", m === cur && "is-on") + '"' +
     dataAttrs({ act: "theme-pick", mode: m }) + ">" +
-      themeSvg(THEME_ICON[m]) +
       "<span>" + esc(PBTheme.LABEL[m]) + "</span>" +
       '<svg class="tick" viewBox="0 0 20 20"><path d="M4.8 10.4 8.4 14l6.8-8"/></svg>' +
     "</button>").join("");
