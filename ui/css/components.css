@@ -1261,7 +1261,6 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.set-card.is-list .set-row.is-link:hover { background: var(--c-surface-2); }
 
 /* 卡片无内边距，间距全由行自己给，首末行才和卡片边缘对齐 */
 .set-head {
