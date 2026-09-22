@@ -126,7 +126,7 @@ function renderRepoGh() {
             ' · <a class="gh-inline-link" href="https://github.com/settings/applications"' +
             ' target="_blank" rel="noopener">在 GitHub 上管理授权</a></div>' +
         "</div>" +
-        '<button class="btn is-ghost is-danger" data-act="gh-unbind">解绑</button>' +
+        '<button class="btn is-outline is-danger" data-act="gh-unbind">解绑</button>' +
       "</div>";
     return;
   }
