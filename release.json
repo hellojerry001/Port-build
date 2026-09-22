@@ -8,9 +8,9 @@
     "托管方式改为下拉选择，交互与主题切换一致",
     "修复应用内绑定账号后凭证无法用于推送的问题"
   ],
-  "dmg": "",
-  "dmg_name": "",
-  "dmg_size": 0,
+  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.0_aarch64.dmg",
+  "dmg_name": "VibeButler_0.5.0_aarch64.dmg",
+  "dmg_size": 5757905,
   "min_macos": "12.0",
   "mandatory": false
 }
