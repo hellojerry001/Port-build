@@ -13,8 +13,11 @@ const PORT_PLACEHOLDER: &str = "__PB_PORT__";
 /// 需要做占位符替换的文件（相对项目根）；不存在则跳过
 const INJECT_FILES: [&str; 3] = ["package.json", "zmi.config.js", "publish.json"];
 
-/// 克隆后要清掉的构建产物
-const DROP_ENTRIES: [&str; 1] = ["dist"];
+/// 克隆后要清掉的构建产物。
+/// `dist` 是 zmi 系（pc / mobile）的输出目录；`.next` / `out` / `.content-collections`
+/// 是 Next 系文档站（spell-docs）的产物与缓存 —— 不存在的会被静默跳过，
+/// 但留着会把旧构建结果和过期内容索引一起带进新项目。
+const DROP_ENTRIES: [&str; 4] = ["dist", ".next", "out", ".content-collections"];
 
 fn default_port_start() -> u16 {
     8100
@@ -326,14 +329,21 @@ mod tests {
         fs::write(tpl.join("zmi.config.js"), "port: __PB_PORT__,").unwrap();
         fs::write(tpl.join("publish.json"), r#"{"appKey":"__PB_SLUG__"}"#).unwrap();
         fs::write(tpl.join("dist/junk.js"), "x").unwrap();
+        // Next 系文档站的产物 / 缓存，同样不该带进新项目
+        for gen in [".next", "out", ".content-collections"] {
+            fs::create_dir_all(tpl.join(gen)).unwrap();
+            fs::write(tpl.join(gen).join("junk.js"), "x").unwrap();
+        }
         fs::write(tpl.join(".DS_Store"), "x").unwrap();
 
-        let dst = root.join("out");
+        let dst = root.join("target");
         clone_template(&tpl, &dst).unwrap();
         clean_target(&dst);
         let touched = inject(&dst, "demo-app", 8101).unwrap();
 
-        assert!(!dst.join("dist").exists(), "dist 没清掉");
+        for gone in ["dist", ".next", "out", ".content-collections"] {
+            assert!(!dst.join(gone).exists(), "{gone} 没清掉");
+        }
         assert!(!dst.join(".DS_Store").exists(), ".DS_Store 没清掉");
         assert_eq!(touched.len(), 3);
 
