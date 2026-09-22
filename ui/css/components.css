@@ -84,24 +84,6 @@
 /* 把底部项推到底 */
 .rail-sp { flex: 1; }
 
-/* ============================== 主题切换浮层 ============================== */
-/* 从 rail 底部按钮右侧弹出。定位用 fixed，贴着 rail 右边缘 */
-.theme-menu {
-  position: fixed;
-  left: calc(var(--rail-w) + var(--px-6));
-  bottom: var(--px-14);
-  min-width: var(--px-90);
-  padding: var(--px-4);
-  background: var(--c-modal);
-  border: var(--hairline) solid var(--c-border-float);
-  box-shadow: var(--c-shadow-lift);
-  border-radius: var(--r-10);
-  display: none;
-  z-index: var(--z-tip);
-}
-
-.theme-menu.is-open { display: block; }
-
 /* ------------------------------ 设置页主题选择器 ------------------------------ */
 
 .theme-field {

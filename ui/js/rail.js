@@ -57,81 +57,14 @@ const PAGES = {
   about:     ["关于",       "版本信息与更新"],
 };
 
-/* 主题三态各一个图标：按钮上用「当前选择」的那个，一眼能看出现在是什么模式 */
-const THEME_ICON = {
-  system: '<rect x="3.2" y="4.6" width="13.6" height="9" rx="1.6"/>' +
-          '<path d="M10 13.6v2.2"/><path d="M6.8 15.8h6.4"/>',
-  light:  '<circle cx="10" cy="10" r="3.2"/>' +
-          '<path d="M10 2.8v1.7M10 15.5v1.7M2.8 10h1.7M15.5 10h1.7' +
-          'M5 5l1.2 1.2M13.8 13.8 15 15M15 5l-1.2 1.2M6.2 13.8 5 15"/>',
-  dark:   '<path d="M15.6 11.9A6.4 6.4 0 0 1 8.1 4.4a6.4 6.4 0 1 0 7.5 7.5z"/>',
-};
-
-const themeSvg = icon => '<svg viewBox="0 0 20 20">' + icon + "</svg>";
-
-/* 主题入口是 rail 底部的普通按钮，只多了浮层菜单 */
-function themeButtonHtml() {
-  const m = PBTheme.mode();
-  return '<button class="rail-btn" id="themeBtn" data-act="theme-open" data-tip="主题：' +
-         esc(PBTheme.LABEL[m]) + '">' + themeSvg(THEME_ICON[m]) + "</button>";
-}
+/* rail 底部只放导航按钮；主题切换入口在「设置 → 外观设置」 */
 
 function renderRail() {
   const rail = $("rail");
   const top = NAV.filter(n => !n.bot).map(UI.railButton).join("");
   const bot = NAV.filter(n => n.bot).map(UI.railButton).join("");
-  rail.innerHTML = top + '<div class="rail-sp"></div>' + bot + themeButtonHtml();
+  rail.innerHTML = top + '<div class="rail-sp"></div>' + bot;
 }
-
-/* ------------------------------ 主题浮层 ------------------------------ */
-
-const themeMenuOpen = () => $("themeMenu").classList.contains("is-open");
-
-function renderThemeMenu() {
-  const cur = PBTheme.mode();
-  $("themeMenu").innerHTML = PBTheme.MODES.map(m =>
-    '<button class="' + cls("theme-opt", m === cur && "is-on") + '"' +
-    dataAttrs({ act: "theme-pick", mode: m }) + ">" +
-      themeSvg(THEME_ICON[m]) +
-      "<span>" + esc(PBTheme.LABEL[m]) + "</span>" +
-      '<svg class="tick" viewBox="0 0 20 20"><path d="M4.8 10.4 8.4 14l6.8-8"/></svg>' +
-    "</button>").join("");
-}
-
-function closeThemeMenu() { $("themeMenu").classList.remove("is-open"); }
-
-on("theme-open", () => {
-  if (themeMenuOpen()) return closeThemeMenu();
-  renderThemeMenu();
-  $("themeMenu").classList.add("is-open");
-});
-
-on("theme-pick", el => {
-  PBTheme.set(el.dataset.mode);
-  closeThemeMenu();
-});
-
-/* 点浮层和按钮以外的地方、或按 Esc 都收起菜单 */
-document.addEventListener("click", e => {
-  if (!themeMenuOpen()) return;
-  if (e.target.closest("#themeMenu") || e.target.closest("#themeBtn")) return;
-  closeThemeMenu();
-});
-
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && themeMenuOpen()) closeThemeMenu();
-});
-
-/* 主题一变，按钮图标与菜单选中态都要跟上（订阅时立刻回调一次） */
-PBTheme.subscribe(() => {
-  const m = PBTheme.mode();
-  const btn = $("themeBtn");
-  if (btn) {
-    btn.dataset.tip = "主题：" + PBTheme.LABEL[m];
-    btn.innerHTML = themeSvg(THEME_ICON[m]);
-  }
-  if (themeMenuOpen()) renderThemeMenu();
-});
 
 function goPage(key) {
   if (!PAGES[key]) key = "projects";
