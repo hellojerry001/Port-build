@@ -773,16 +773,26 @@ fn store_gh_token(token: &str) -> Result<(), String> {
     let _ = Command::new("/usr/bin/security")
         .args(["delete-internet-password", "-s", "github.com"])
         .output();
-    let out = Command::new("/usr/bin/security")
-        .args([
-            "add-internet-password",
-            "-s", "github.com",
-            "-a", "x-access-token",
-            "-w", token,
-            "-T", "/usr/bin/git",
-            "-T", "/usr/bin/security",
-        ])
-        .output()
+    // 用 git 自带的凭证辅助程序写入：它会给自己开 ACL，之后 `git push` 才能无交互
+    // 读到。直接 `security add-internet-password -T` 限制的条目，
+    // `git-credential-osxkeychain` 不在白名单里，headless 下会静默读不到，推送报
+    // "could not read Username"（2026-09-22 实测踩到）。
+    let input = format!(
+        "protocol=https\nhost=github.com\nusername=x-access-token\npassword={token}\n\n"
+    );
+    let mut child = Command::new("/usr/bin/git")
+        .args(["credential", "approve"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("写入钥匙串失败：{e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        std::io::Write::write_all(&mut stdin, input.as_bytes())
+            .map_err(|e| format!("写入钥匙串失败：{e}"))?;
+    }
+    let out = child
+        .wait_with_output()
         .map_err(|e| format!("写入钥匙串失败：{e}"))?;
     if !out.status.success() {
         return Err(format!(
