@@ -285,13 +285,13 @@
   color: var(--c-text);
 }
 
-/* 描边胶囊：设置行右侧的「解绑」「重新检测」等独立小操作，
-   白底细描边 + 大圆角，和卡片本身区分开 */
+/* 描边小按钮：设置行右侧的「解绑」「重新检测」等独立小操作，
+   白底细描边 + 圆角矩形，和「编辑」按钮同一形状语言 */
 .btn.is-outline {
   background: transparent;
   border: var(--hairline) solid var(--c-border-field);
-  border-radius: var(--r-pill);
-  padding: var(--px-6) var(--px-14);
+  border-radius: var(--r-8);
+  padding: var(--px-6) var(--px-12);
   color: var(--c-text);
 }
 
