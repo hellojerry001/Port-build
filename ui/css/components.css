@@ -118,6 +118,10 @@
   width: var(--px-14);
   height: var(--px-14);
   color: var(--c-text-2);
+  /* 填充型 chevron（一条闭合 path）：必须显式 fill: currentColor，
+     否则退回 SVG 默认的黑色 —— 深色主题下就是个几乎看不见的黑三角 */
+  fill: currentColor;
+  stroke: none;
   transition: transform var(--dur-fast) var(--ease);
 }
 
