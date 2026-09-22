@@ -101,6 +101,9 @@ fn ext_to_uti(ext: &str) -> String {
         "heic" => "public.heic".into(),
         "tiff" | "tif" => "public.tiff".into(),
         "gif" => "public.gif".into(),
+        // zip 的 UTI 不叫 public.zip：AppleScript 拿到无效 UTI 会直接语法错（-2741），
+        // 选择器弹不出来且只在用户点「新增模板 → 选压缩包」时才暴露
+        "zip" => "public.zip-archive".into(),
         other => format!("public.{}", other),
     }
 }

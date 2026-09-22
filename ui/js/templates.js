@@ -152,9 +152,183 @@ async function submitTemplate() {
   setTimeout(() => openBrowser(created.port), 6000);
 }
 
-/* ============================== 模板库页面 ==============================
-   内置模板的只读总览：卡片网格 + 说明行。数据与弹窗共用 loadScaffolds()，
-   卡片上的「用此模板新建」直接带着 key 打开弹窗，省掉再选一次。 */
+/* ============================== 新增模板 ==============================
+   把本机项目 / 同事发来的 .zip 存成内置模板。
+   两步走：挑来源 → probe_scaffold_source 体检（有没有描述文件、能不能启动、
+   体积多大、有哪些坑）→ 预填表单让用户确认 → import_scaffold 落到 scaffolds。 */
+
+const ADD_FIELDS = ["taName", "taKey", "taPort", "taCmd", "taNode", "taDesc"];
+
+function openAddTemplate() {
+  addSrc = "";
+  addProbe = null;
+  addBusy = false;
+  ADD_FIELDS.forEach(id => { $(id).value = ""; });
+  setAddSrcLabel("");
+  $("taProbe").innerHTML = "";
+  setAddHint("");
+  $("taStatus").textContent = "";
+  $("taSubmit").disabled = true;
+  $("taSubmit").textContent = "导入模板";
+  openModal("tplAddModal");
+}
+
+function closeAddTemplate() {
+  if (!addBusy) closeModal("tplAddModal");
+}
+
+function setAddSrcLabel(path) {
+  const el = $("taSrc");
+  el.textContent = path || "未选择";
+  el.className = cls("src-path", !path && "is-empty");
+  el.title = path || "";
+}
+
+function setAddHint(text, isWarn) {
+  const el = $("taHint");
+  el.textContent = text || "";
+  el.className = cls("hint", isWarn && "is-warn");
+}
+
+function setAddBusy(on, text) {
+  addBusy = on;
+  $("taSubmit").disabled = on;
+  $("taSubmit").textContent = on ? "导入中…" : "导入模板";
+  $("taStatus").innerHTML = text ? UI.spinner(text) : "";
+}
+
+function fmtSize(bytes) {
+  const mb = (Number(bytes) || 0) / 1024 / 1024;
+  if (mb >= 1024) return (mb / 1024).toFixed(1) + "GB";
+  if (mb >= 10) return Math.round(mb) + "MB";
+  return mb.toFixed(1) + "MB";
+}
+
+/* 体检结果：来源摘要 + 顶层条目 + 警告，让用户在导入前就知道会发生什么 */
+function renderAddProbe() {
+  const p = addProbe;
+  if (!p) return;
+  const kind = p.kind === "zip" ? "压缩包" : "文件夹";
+  const bits = [kind, p.fileCount + " 项", fmtSize(p.sizeBytes)];
+  bits.push(p.hasDescriptor ? "含 .pb-scaffold.json" : "无描述文件（字段为推断值）");
+  if (p.drilled) bits.push("已下钻子目录");
+
+  const entries = (p.entries || []).length
+    ? '<div class="tpl-add-entries">' +
+        p.entries.map(e => '<span class="mono">' + esc(e) + "</span>").join("") + "</div>"
+    : "";
+  const warns = (p.warnings || [])
+    .map(w => '<div class="tpl-add-warn">' + esc(w) + "</div>").join("");
+
+  $("taProbe").innerHTML =
+    '<div class="tpl-add-meta">' + bits.map(esc).join(" · ") + "</div>" + entries + warns;
+}
+
+async function pickAddSource(kind) {
+  if (addBusy) return;
+  let picked = null;
+  try {
+    picked = kind === "zip"
+      ? await invoke("pick_file", {
+          prompt: "选择模板压缩包（.zip）",
+          defaultPath: addSrc || "",
+          exts: ["zip"],
+        })
+      : await invoke("pick_folder", {
+          prompt: "选择要作为模板的项目目录",
+          defaultPath: addSrc || "",
+        });
+  } catch (e) {
+    return toast(String(e));
+  }
+  if (!picked) return;   // 用户取消
+
+  addSrc = picked;
+  addProbe = null;
+  setAddSrcLabel(picked);
+  $("taSubmit").disabled = true;
+  $("taProbe").innerHTML = UI.spinner("正在体检…");
+
+  try {
+    addProbe = await invoke("probe_scaffold_source", { source: picked });
+  } catch (e) {
+    $("taProbe").innerHTML = '<div class="tpl-add-warn">' + esc(String(e)) + "</div>";
+    return;
+  }
+
+  const s = addProbe.suggested || {};
+  $("taName").value = s.name || "";
+  $("taKey").value = s.key || "";
+  $("taPort").value = s.portStart || "";
+  $("taCmd").value = s.command || "";
+  $("taNode").value = s.nodeVersion || "";
+  $("taDesc").value = s.desc || "";
+  renderAddProbe();
+  $("taSubmit").disabled = false;
+  setAddHint("");
+}
+
+async function submitAddTemplate() {
+  if (addBusy) return;
+
+  if (!addSrc) return toast("先选择模板来源（文件夹或 .zip）");
+  const name = $("taName").value.trim();
+  const key = $("taKey").value.trim().toLowerCase();
+  const port = Number($("taPort").value) || 0;
+  const command = $("taCmd").value.trim();
+  const nodeVersion = $("taNode").value.trim();
+  const desc = $("taDesc").value.trim();
+
+  if (!name) return toast("请填写模板名称");
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(key)) {
+    return toast("标识只能用小写字母、数字、- 和 _，且以字母或数字开头");
+  }
+  if (!command) return toast("请填写启动命令");
+
+  const t0 = Date.now();
+  setAddBusy(true, "正在导入…");
+  const timer = setInterval(() => {
+    if (addBusy) {
+      $("taStatus").innerHTML =
+        UI.spinner("正在导入… " + ((Date.now() - t0) / 1000).toFixed(0) + "s");
+    }
+  }, 200);
+
+  let res = null;
+  try {
+    res = await invoke("import_scaffold", {
+      source: addSrc,
+      key, name, desc,
+      portStart: port,
+      nodeVersion,
+      command,
+    });
+  } catch (e) {
+    clearInterval(timer);
+    setAddBusy(false, "");
+    return toast(String(e));
+  }
+  clearInterval(timer);
+  setAddBusy(false, "");
+
+  closeModal("tplAddModal");
+  await loadScaffolds(true);
+  renderTplLibrary();
+
+  const notes = (res && res.notes) || [];
+  toast("已新增模板「" + (res && res.scaffold ? res.scaffold.name : name) + "」" +
+        (notes.length ? "：" + notes.join("；") : ""));
+
+  // 导入的 Node 版本本机没有时会出警告，这里顺带明确说一句
+  if (res && res.scaffold && !res.scaffold.nodeReady) {
+    setTimeout(() => toast("本机没装 Node " + res.scaffold.nodeVersion +
+      "，用它新建项目时会退回系统默认版本"), 3300);
+  }
+}
+
+/* 模板库页面：内置模板的总览与维护入口。
+   数据与弹窗共用 loadScaffolds()，卡片上的「用此模板新建」直接带着 key 打开弹窗；
+   右上角「＋ 新增模板」把本机项目 / .zip 导进来。 */
 
 /* 卡片左侧的缩略标识：与 rail「模板库」同一个层叠图标，装进灰底圆角块 */
 const TPL_GLYPH =
@@ -192,7 +366,8 @@ function renderTplLibrary() {
 
   if (!scaffolds.length) {
     grid.innerHTML = UI.empty(
-      "还没装模板。把脚手架目录放进 ~/.portbutler/scaffolds 即可（需要含 .pb-scaffold.json）",
+      "还没有模板。点右上角「＋ 新增模板」把本机项目或 .zip 导进来，" +
+      "也可以直接把模板目录放进 ~/.portbutler/scaffolds（含 .pb-scaffold.json）",
       { span: true });
     return;
   }
@@ -244,6 +419,13 @@ on("tpl-lib-reveal-root", async () => {
     toast(String(e));
   }
 });
+
+/* 新增模板 */
+on("tpl-add-open",     () => openAddTemplate());
+on("tpl-add-close",    () => closeAddTemplate());
+on("tpl-add-pick-dir", () => pickAddSource("dir"));
+on("tpl-add-pick-zip", () => pickAddSource("zip"));
+on("tpl-add-submit",   () => submitAddTemplate());
 
 onInput("tpl-name", () => onNameInput());
 onInput("tpl-slug", el => { el._manual = el.value.trim().length > 0; });

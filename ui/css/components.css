@@ -636,6 +636,61 @@
   word-break: break-all;
 }
 
+/* ============================== 新增模板 ============================== */
+/* 来源路径：跟在两个选择按钮后面，长了就省略号截断（title 里看全文） */
+.src-path {
+  flex: 1;
+  min-width: 0;
+  color: var(--c-text-2);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.src-path.is-empty { color: var(--c-text-3); font-family: var(--ff-sans); }
+
+/* 体检结果块：摘要行 + 顶层条目 + 警告，导入前让用户看清会发生什么 */
+.tpl-add-probe:not(:empty) {
+  background: var(--c-surface-2);
+  border-radius: var(--r-8);
+  padding: var(--px-10) var(--px-12);
+  margin-bottom: var(--px-14);
+}
+
+.tpl-add-meta {
+  color: var(--c-text-2);
+  font-size: var(--fs-12);
+  line-height: var(--lh-16);
+}
+
+.tpl-add-entries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--px-6);
+  margin-top: var(--px-8);
+}
+
+.tpl-add-entries .mono {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  background: var(--c-surface-1);
+  border-radius: var(--r-5);
+  padding: 2px var(--px-6);
+}
+
+.tpl-add-warn {
+  color: var(--c-warn);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  margin-top: var(--px-8);
+}
+
+.tpl-add-warn:first-child { margin-top: 0; }
+
 /* ============================== 弹窗 ============================== */
 .overlay {
   position: fixed;

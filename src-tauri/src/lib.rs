@@ -78,6 +78,8 @@ pub fn run() {
             scaffolds::scaffold_root_path,
             scaffolds::suggest_port,
             scaffolds::create_project,
+            scaffolds::probe_scaffold_source,
+            scaffolds::import_scaffold,
             update::app_info,
             update::check_manifest,
             update::download_dmg,

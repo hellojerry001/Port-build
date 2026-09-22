@@ -21,6 +21,10 @@ let scaffolds = [];           // 模板列表
 let tplPicked = "";           // 当前选中的模板 key
 let tplBusy = false;
 
+let addSrc = "";              // 「新增模板」选中的来源（目录 / zip 路径）
+let addProbe = null;          // 来源体检结果（probe_scaffold_source）
+let addBusy = false;
+
 let pubId = "";               // 发布弹窗当前项目 id
 let pubProbe = null;          // 发布目录探测结果
 let publishes = [];           // 发布记录
