@@ -33,6 +33,14 @@ pub struct PublishRecord {
     pub published_at: i64,
     /// 链接失效时刻（毫秒时间戳）；None = 长期有效
     pub expires_at: Option<i64>,
+    /// 托管方式：`cloudflare` | `github`。
+    /// 加 `default` 是因为这个字段比记录格式晚出现 —— 老记录没有它，读回来要当 cloudflare。
+    #[serde(default = "default_hosting")]
+    pub hosting: String,
+}
+
+fn default_hosting() -> String {
+    crate::git::HOSTING_CLOUDFLARE.to_string()
 }
 
 pub fn now_ms() -> i64 {
@@ -128,6 +136,7 @@ mod tests {
             claim_url: Some("https://dash.cloudflare.com/claim-preview?claimToken=x".into()),
             published_at: ts,
             expires_at: Some(ts + 3_600_000),
+            hosting: "cloudflare".into(),
         }
     }
 
@@ -181,5 +190,26 @@ mod tests {
         r.expires_at = None; // 长期有效（非临时部署）
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("\"expiresAt\":null"));
+    }
+
+    #[test]
+    fn old_records_without_hosting_read_back_as_cloudflare() {
+        // 这个字段比记录格式晚出现：老的用户数据里没有它，
+        // 读回来必须当 cloudflare，否则列表会把历史记录显示成 GitHub 托管。
+        let json = r#"{
+            "id": "pb-1", "projectId": "p1", "projectName": "演示",
+            "distPath": "/tmp/dist", "url": "https://pb-1.x.workers.dev",
+            "claimUrl": null, "publishedAt": 1, "expiresAt": null
+        }"#;
+        let r: PublishRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(r.hosting, "cloudflare");
+
+        // 带 hosting 的新记录原样保留
+        let json2 = r#"{
+            "id": "gh-1", "projectId": "", "projectName": "站",
+            "distPath": "/tmp/dist", "url": "https://u.github.io/s/",
+            "claimUrl": null, "publishedAt": 1, "expiresAt": null, "hosting": "github"
+        }"#;
+        assert_eq!(serde_json::from_str::<PublishRecord>(json2).unwrap().hosting, "github");
     }
 }

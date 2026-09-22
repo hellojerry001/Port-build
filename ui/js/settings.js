@@ -26,7 +26,48 @@ function draftFromSettings(s) {
     defaultBranch: s.defaultBranch || "main",
     autoGitignore: s.autoGitignore !== false,
     autoFirstCommit: s.autoFirstCommit !== false,
+    hosting: s.hosting === "github" ? "github" : "cloudflare",
+    ghBranch: s.ghBranch || "gh-pages",
+    ghRepoPrefix: s.ghRepoPrefix === undefined ? "pb-" : s.ghRepoPrefix,
+    ghAutoPages: s.ghAutoPages !== false,
   };
+}
+
+/* 托管方式：两个 chip 二选一。说明行跟着当前选择变，讲清这条路的代价 */
+const HOSTINGS = [
+  {
+    key: "cloudflare",
+    label: "Cloudflare 临时链接",
+    note: "匿名临时部署，默认 60 分钟失效，可在窗口期内认领为永久",
+  },
+  {
+    key: "github",
+    label: "GitHub Pages",
+    note: "长期有效，产物推到仓库分支；免费账号只能用 public 仓库",
+  },
+];
+
+function renderHostingChips() {
+  const cur = gsDraft ? gsDraft.hosting : "cloudflare";
+  const box = $("hsChips");
+  if (!box) return;
+  box.innerHTML = HOSTINGS.map(h =>
+    '<button class="' + cls("chip", h.key === cur && "is-on") + '"' +
+    dataAttrs({ act: "hs-pick", key: h.key }) + ">" + esc(h.label) + "</button>").join("");
+
+  const hit = HOSTINGS.filter(h => h.key === cur)[0];
+  const note = $("hsNote");
+  note.textContent = hit ? hit.note : "";
+
+  // GitHub 相关的三个设置只在选了 GitHub 时才有意义 —— 灰掉而不是藏起来，
+  // 免得用户以为「设置没了」
+  const gh = cur === "github";
+  ["hsBranch", "hsPrefix", "hsAutoPages"].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.disabled = gsBusy || !gsDraft || !gh;
+    el.classList.toggle("is-inactive", !gh);
+  });
 }
 
 function writeDraftToInputs() {
@@ -34,6 +75,8 @@ function writeDraftToInputs() {
   $("gsBranch").value = gsDraft.defaultBranch;
   $("gsEditName").value = gsDraft.name;
   $("gsEditEmail").value = gsDraft.email;
+  $("hsBranch").value = gsDraft.ghBranch;
+  $("hsPrefix").value = gsDraft.ghRepoPrefix;
 }
 
 function renderIdentity() {
@@ -93,6 +136,7 @@ function renderToggles() {
   };
   set($("gsIgnore"), !!(gsDraft && gsDraft.autoGitignore));
   set($("gsFirst"), !!(gsDraft && gsDraft.autoFirstCommit));
+  set($("hsAutoPages"), !!(gsDraft && gsDraft.ghAutoPages));
 }
 
 function renderTheme() {
@@ -104,6 +148,7 @@ function renderSettings() {
   renderIdentity();
   renderToggles();
   renderTheme();
+  renderHostingChips();
 }
 
 /* ============================== 数据 ============================== */
@@ -146,6 +191,16 @@ onInput("gs-field", el => {
   renderEditHint();
 });
 
+/* 文本框失焦（或按 Enter）即落盘。
+   之前这些框只在「提交身份」弹窗里点保存才会写回去 —— 改了默认分支却
+   没打开过弹窗的话，改动会静默丢掉。保存后 writeDraftToInputs 会把
+   后端收口过的值写回输入框，用户能立刻看到规范化结果（如前缀 PB → pb-）。 */
+onChange("gs-field-save", el => {
+  if (!gsDraft || gsBusy) return;
+  gsDraft[el.dataset.k] = el.value;
+  saveGitSettings(true);
+});
+
 async function saveGitSettings(silent) {
   if (!gsDraft || gsBusy) return false;
   gsBusy = true;
@@ -162,6 +217,12 @@ async function saveGitSettings(silent) {
         defaultBranch: gsDraft.defaultBranch,
         autoGitignore: gsDraft.autoGitignore,
         autoFirstCommit: gsDraft.autoFirstCommit,
+        // ⚠️ 托管字段必须一起带上：后端是逐字段覆盖的，
+        // 漏传会按 serde default 把用户的选择重置回 cloudflare
+        hosting: gsDraft.hosting,
+        ghBranch: gsDraft.ghBranch,
+        ghRepoPrefix: gsDraft.ghRepoPrefix,
+        ghAutoPages: gsDraft.ghAutoPages,
       },
     });
     gsDraft = draftFromSettings(saved);
@@ -193,6 +254,22 @@ on("gs-toggle", el => {
     if (!ok) {
       gsDraft[k] = old;
       writeDraftToInputs();
+      renderSettings();
+    }
+  });
+});
+
+/* 托管方式二选一：切完立刻落盘（和上面的开关同一套回滚逻辑） */
+on("hs-pick", el => {
+  if (!gsDraft || gsBusy) return;
+  const key = el.dataset.key;
+  if (!key || key === gsDraft.hosting) return;
+  const old = gsDraft.hosting;
+  gsDraft.hosting = key;
+  renderSettings();
+  saveGitSettings(true).then(ok => {
+    if (!ok) {
+      gsDraft.hosting = old;
       renderSettings();
     }
   });

@@ -955,6 +955,17 @@
 .pl-badge.is-dead { color: var(--c-text-3); }
 .pl-badge.is-perm { background: var(--c-surface-6); color: var(--c-text); }
 
+/* 发布记录的托管来源标签。比右侧状态徽标更淡（描边而非填色），
+   两者挨着时不会抢视线 —— 一张卡上两个实心胶囊会很吵 */
+.pl-src {
+  flex: none;
+  font-size: var(--fs-10);
+  color: var(--c-text-3);
+  padding: var(--px-2) var(--px-6);
+  border: var(--hairline) solid var(--c-border-field);
+  border-radius: var(--r-pill);
+}
+
 .pl-url {
   font-size: var(--fs-11);
   color: var(--c-text-2);
@@ -1312,6 +1323,17 @@
 
 .set-section { margin-bottom: var(--px-24); }
 
+/* 设置卡片下方的说明行。左内边距对齐卡片内文字（.set-card 有 16px 内边距） */
+.set-foot-note {
+  margin-top: var(--px-8);
+  padding-left: var(--px-4);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  color: var(--c-text-3);
+}
+
+.set-foot-note.is-bad { color: var(--c-danger); }
+
 .set-section-title {
   font-size: var(--fs-13);
   font-weight: var(--fw-semi);
@@ -1328,6 +1350,10 @@
 }
 
 .set-card:last-child { margin-bottom: 0; }
+
+/* 设置项在某个上下文里不适用时（如没选 GitHub 托管）压低存在感 —— 
+   灰掉而不是藏起来，免得用户以为设置项消失了 */
+.set-row .is-inactive { opacity: 0.45; }
 
 /* 列表式设置卡：没有独立的 head/body/foot，整组由 .set-row 拼成 */
 .set-card.is-list { padding: 0 var(--px-16); }

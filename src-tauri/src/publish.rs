@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::ghpages;
+use crate::git;
 use crate::publishes::{self, PublishRecord};
 
 #[derive(Serialize)]
@@ -13,6 +15,10 @@ pub struct PublishResult {
     /// 临时链接失效时刻（毫秒时间戳）；None = 长期有效
     pub expires_at: Option<i64>,
     pub error: Option<String>,
+    /// 本次实际用的托管方式：`cloudflare` | `github`（前端据此决定结果区文案）
+    pub hosting: String,
+    /// GitHub 托管时的补充说明（Pages 开启结果、目标仓库等）
+    pub note: Option<String>,
 }
 
 /// 常见的静态产物目录（相对项目根），按出现频率排序
@@ -397,8 +403,117 @@ fn run_wrangler(dist: &str, name: &str, home: &Path, npm_cache: &Path, run_dir: 
     }
 }
 
+/// 执行部署（按托管设置分流）。
+///
+/// `hosting` 为空则读设置里的偏好；非空表示「本次临时改用另一种」，
+/// 由发布弹窗传入 —— 不想为了试一次就跑去设置页改。
 #[tauri::command]
 pub fn publish_project(
+    dist_path: String,
+    project_id: Option<String>,
+    project_name: Option<String>,
+    project_path: Option<String>,
+    hosting: Option<String>,
+    branch: Option<String>,
+) -> PublishResult {
+    let prefs = git::hosting_prefs();
+    let mode = hosting
+        .map(|h| h.trim().to_lowercase())
+        .filter(|h| !h.is_empty())
+        .unwrap_or(prefs.hosting);
+    let branch = branch
+        .map(|b| b.trim().to_string())
+        .filter(|b| !b.is_empty())
+        .unwrap_or(prefs.branch);
+
+    if mode == git::HOSTING_GITHUB {
+        return publish_via_github(
+            &dist_path,
+            project_id,
+            project_name,
+            project_path,
+            &branch,
+            prefs.auto_pages,
+            &prefs.prefix,
+        );
+    }
+    publish_via_cloudflare(dist_path, project_id, project_name)
+}
+
+/// GitHub Pages：长期托管，产物推到产物分支，地址形如
+/// `https://<owner>.github.io/<repo>/`，不需要认领。
+fn publish_via_github(
+    dist_path: &str,
+    project_id: Option<String>,
+    project_name: Option<String>,
+    project_path: Option<String>,
+    branch: &str,
+    auto_pages: bool,
+    prefix: &str,
+) -> PublishResult {
+    let fail = |msg: String| PublishResult {
+        ok: false,
+        url: None,
+        claim_url: None,
+        expires_at: None,
+        error: Some(msg),
+        hosting: git::HOSTING_GITHUB.to_string(),
+        note: None,
+    };
+
+    let p = Path::new(dist_path);
+    if !p.exists() || !p.is_dir() {
+        return fail(format!(
+            "目录不存在或不是文件夹：{dist_path}\n\n提示：先在项目里构建（npm run build），\
+             或点「重新探测」让应用自动找出产物目录。"
+        ));
+    }
+
+    let name = project_name.clone().unwrap_or_default();
+    let ident = git::effective_identity();
+    let outcome = match ghpages::publish(
+        p,
+        project_path.as_deref(),
+        &name,
+        branch,
+        auto_pages,
+        prefix,
+        (&ident.0, &ident.1),
+    ) {
+        Ok(o) => o,
+        Err(e) => return fail(e),
+    };
+
+    // 落盘：GitHub 托管是长期的，记录更要留得住 —— 关掉弹窗后靠它找回地址
+    publishes::push(PublishRecord {
+        id: format!("gh-{}-{}", outcome.target.repo, publishes::now_ms()),
+        project_id: project_id.clone().unwrap_or_default(),
+        project_name: name.clone(),
+        dist_path: dist_path.to_string(),
+        url: outcome.url.clone(),
+        claim_url: None,
+        published_at: publishes::now_ms(),
+        expires_at: None,   // Pages 长期有效
+        hosting: git::HOSTING_GITHUB.to_string(),
+    });
+
+    let note = format!(
+        "仓库 {}/{}（分支 {}）· {}\n首次开启 Pages 后需要约 1 分钟构建，期间打开可能 404。",
+        outcome.target.owner, outcome.target.repo, branch, outcome.pages_note
+    );
+    PublishResult {
+        ok: true,
+        url: Some(outcome.url),
+        claim_url: None,
+        expires_at: None,
+        error: None,
+        hosting: git::HOSTING_GITHUB.to_string(),
+        note: Some(note),
+    }
+}
+
+/// Cloudflare 临时链接：匿名临时部署，默认 60 分钟失效。
+fn publish_via_cloudflare(
     dist_path: String,
     project_id: Option<String>,
     project_name: Option<String>,
@@ -415,6 +530,8 @@ pub fn publish_project(
                  或点「重新探测」让应用自动找出产物目录。",
                 dist_path
             )),
+            hosting: git::HOSTING_CLOUDFLARE.to_string(),
+            note: None,
         };
     }
 
@@ -456,6 +573,7 @@ pub fn publish_project(
             claim_url: claim.clone(),
             published_at: publishes::now_ms(),
             expires_at,
+            hosting: git::HOSTING_CLOUDFLARE.to_string(),
         });
         PublishResult {
             ok: true,
@@ -463,6 +581,8 @@ pub fn publish_project(
             claim_url: claim,
             expires_at,
             error: None,
+            hosting: git::HOSTING_CLOUDFLARE.to_string(),
+            note: None,
         }
     } else {
         // 把几个已知的失败模式翻译成人话
@@ -480,6 +600,8 @@ pub fn publish_project(
             claim_url: claim,
             expires_at: None,
             error: Some(friendly),
+            hosting: git::HOSTING_CLOUDFLARE.to_string(),
+            note: None,
         }
     }
 }

@@ -1,6 +1,7 @@
 mod appmeta;
 mod build;
 mod dialog;
+mod ghpages;
 mod git;
 mod icon;
 mod open;
@@ -71,6 +72,7 @@ pub fn run() {
             publish::publish_project,
             publish::publish_probe,
             publish::check_dir,
+            ghpages::gh_publish_preview,
             publishes::list_publishes,
             publishes::delete_publish,
             publishes::clear_publishes,

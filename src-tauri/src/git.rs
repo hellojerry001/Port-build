@@ -22,7 +22,7 @@ const GIT_CANDIDATES: &[&str] = &[
     "/usr/bin/git",
 ];
 
-fn git_bin() -> String {
+pub(crate) fn git_bin() -> String {
     for p in GIT_CANDIDATES {
         if Path::new(p).is_file() {
             return (*p).to_string();
@@ -63,6 +63,10 @@ fn git_out(dir: Option<&str>, args: &[&str]) -> Option<String> {
 
 /* ============================== 设置 ============================== */
 
+/// 托管方式取值。前端只认这两个字符串，后端也在这里收口。
+pub const HOSTING_CLOUDFLARE: &str = "cloudflare";
+pub const HOSTING_GITHUB: &str = "github";
+
 /// GitHub 同步偏好。存 `~/.portbutler/settings.json`。
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
@@ -80,6 +84,16 @@ pub struct GitSettings {
     pub github_client_id: String,
     /// 已绑定的 GitHub 账号（只存用户名，绝不存 token）
     pub github_login: String,
+
+    /* ---- 托管设置（发布到哪儿） ---- */
+    /// 托管方式：`cloudflare`（匿名临时链接，现状）或 `github`（GitHub Pages，长期）
+    pub hosting: String,
+    /// GitHub Pages 用的产物分支名
+    pub gh_branch: String,
+    /// 推完分支后自动调 API 开启 Pages
+    pub gh_auto_pages: bool,
+    /// 自动新建仓库时的名字前缀（`<前缀><项目标识>`），避免撞上同名仓库
+    pub gh_repo_prefix: String,
 }
 
 impl Default for GitSettings {
@@ -92,6 +106,10 @@ impl Default for GitSettings {
             auto_first_commit: true,
             github_client_id: String::new(),
             github_login: String::new(),
+            hosting: HOSTING_CLOUDFLARE.into(),
+            gh_branch: "gh-pages".into(),
+            gh_auto_pages: true,
+            gh_repo_prefix: "pb-".into(),
         }
     }
 }
@@ -121,6 +139,23 @@ impl GitSettings {
         if !is_valid_branch(&self.default_branch) {
             return Err(format!("分支名不合法：{}", self.default_branch));
         }
+
+        // 托管方式只认这两种；写脏值（手改配置 / 旧版本）一律回落到默认，
+        // 而不是报错 —— 用户不该因为一个内部字段丢掉整份设置。
+        self.hosting = self.hosting.trim().to_lowercase();
+        if self.hosting != HOSTING_GITHUB {
+            self.hosting = HOSTING_CLOUDFLARE.into();
+        }
+
+        self.gh_branch = self.gh_branch.trim().to_string();
+        if self.gh_branch.is_empty() {
+            self.gh_branch = "gh-pages".into();
+        }
+        if !is_valid_branch(&self.gh_branch) {
+            return Err(format!("GitHub Pages 分支名不合法：{}", self.gh_branch));
+        }
+        // 前缀会拼进仓库名，按 GitHub 的字符集收口（小写字母/数字/连字符）
+        self.gh_repo_prefix = crate::ghpages::normalize_repo_prefix(&self.gh_repo_prefix);
         Ok(self)
     }
 }
@@ -427,7 +462,7 @@ pub fn git_changed_files(path: String) -> Result<Vec<ChangedFile>, String> {
 
 /// 取出 origin 远端地址；没有就报错（把「先 remote add」交给用户，
 /// 应用不替他建仓库，也不猜他想推到哪个地址）。
-fn origin_url(dir: &str) -> Result<String, String> {
+pub(crate) fn origin_url(dir: &str) -> Result<String, String> {
     git_out(Some(dir), &["remote", "get-url", "origin"])
         .filter(|s| !s.is_empty())
         .ok_or_else(|| "没有远端仓库（origin）。先 `git remote add origin <url>` 再推送。".into())
@@ -497,6 +532,10 @@ pub fn save_git_settings(settings: GitSettings) -> Result<GitSettings, String> {
     existing.default_branch = s.default_branch;
     existing.auto_gitignore = s.auto_gitignore;
     existing.auto_first_commit = s.auto_first_commit;
+    existing.hosting = s.hosting;
+    existing.gh_branch = s.gh_branch;
+    existing.gh_auto_pages = s.gh_auto_pages;
+    existing.gh_repo_prefix = s.gh_repo_prefix;
     let path = settings_path();
     let text = serde_json::to_string_pretty(&existing).map_err(|e| e.to_string())?;
     fs::write(&path, text).map_err(|e| format!("写入设置失败：{e}"))?;
@@ -607,6 +646,122 @@ fn curl_json(url: &str, method: &str, body: Option<&serde_json::Value>) -> (i32,
         ),
         Err(e) => (-1, format!("{{\"error\":\"curl 调用失败：{e}\"}}")),
     }
+}
+
+/// 托管相关偏好的一次性读取（发布链路用）。
+///
+/// 单独开个口子而不是把 `load_settings` 公开：发布模块只需要这四个值，
+/// 不该拿到 client id / 登录名这些无关字段。
+pub(crate) struct HostingPrefs {
+    pub hosting: String,
+    pub branch: String,
+    pub auto_pages: bool,
+    pub prefix: String,
+}
+
+pub(crate) fn hosting_prefs() -> HostingPrefs {
+    let s = load_settings();
+    HostingPrefs {
+        hosting: if s.hosting.trim().is_empty() {
+            HOSTING_CLOUDFLARE.to_string()
+        } else {
+            s.hosting
+        },
+        branch: if s.gh_branch.trim().is_empty() { "gh-pages".into() } else { s.gh_branch },
+        auto_pages: s.gh_auto_pages,
+        prefix: s.gh_repo_prefix,
+    }
+}
+
+/// 生效的提交身份（设置页填的优先，否则读 git 全局配置）。
+///
+/// 产物提交也需要作者信息；用户没在设置页填过时，用他 git 全局的那份，
+/// 免得推上去的提交显示成一个陌生名字。
+pub(crate) fn effective_identity() -> (String, String) {
+    let s = load_settings();
+    let get = |k: &str| {
+        git_out(None, &["config", "--get", k])
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    };
+    let name = if s.name.trim().is_empty() { get("user.name") } else { s.name };
+    let email = if s.email.trim().is_empty() { get("user.email") } else { s.email };
+    (name, email)
+}
+
+/// 取当前可用的 GitHub token，供 API 调用（开 Pages、建仓库等）。
+///
+/// 走 `git credential fill`，与推送**同一来源** —— 尊重用户配的 helper
+/// （osxkeychain / gh / 别的都行），应用不自己去读钥匙串，也就不会额外弹授权框。
+pub(crate) fn gh_token() -> Option<String> {
+    git_credential_fill("github.com").map(|(_, pass)| pass)
+}
+
+/// 带 Bearer token 的 GitHub API 调用，返回 `(HTTP 状态码, 响应体)`。
+///
+/// token 经 curl 的 `-K -`（从 stdin 读配置）传入，**不出现在 argv 里** ——
+/// 命令行参数在同机 `ps` 下可见，而这是个长期有效的凭证。
+/// 请求体照常走 `--data`：不是机密，放进 argv 反而让引号处理简单得多。
+pub(crate) fn gh_api(
+    url: &str,
+    method: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<(u16, String), String> {
+    let token = gh_token().ok_or_else(|| {
+        "没有可用的 GitHub 凭证。请先在「项目仓库」页绑定 GitHub 账号。".to_string()
+    })?;
+
+    let mut c = Command::new("/usr/bin/curl");
+    c.args([
+        "-sS",
+        "-L",
+        "-X",
+        method,
+        url,
+        "-H",
+        "Accept: application/vnd.github+json",
+        "-H",
+        "X-GitHub-Api-Version: 2022-11-28",
+        // ⚠️ 必须显式要状态码：curl 自己的退出码是 0（成功）而不是 HTTP 状态，
+        // 用它做 200/201/409 判断会让所有分支都落到「失败」上。
+        "-w",
+        "\n%{http_code}",
+        "-K",
+        "-",
+    ]);
+    if let Some(b) = body {
+        let j = serde_json::to_string(b).map_err(|e| e.to_string())?;
+        c.args(["-H", "Content-Type: application/json", "--data", &j]);
+    }
+    c.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = c.spawn().map_err(|e| format!("curl 调用失败：{e}"))?;
+    {
+        let Some(si) = child.stdin.as_mut() else {
+            return Err("无法写入 curl 配置".into());
+        };
+        // curl 配置里字符串值用双引号包裹；token 是字母数字/符号集，无需转义
+        write!(si, "header = \"Authorization: Bearer {token}\"\n")
+            .map_err(|e| format!("写入 curl 配置失败：{e}"))?;
+    }
+    // wait_with_output 会先关掉 stdin，curl 才知道配置读完了
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let raw = String::from_utf8_lossy(&out.stdout).to_string();
+    let (body_text, status) = match raw.rfind('\n') {
+        Some(i) => (&raw[..i], raw[i + 1..].trim()),
+        None => ("", raw.trim()),
+    };
+    let code: u16 = status.parse().unwrap_or(0);
+    if !out.status.success() && code == 0 {
+        return Err(format!(
+            "curl 异常退出：{}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok((code, body_text.to_string()))
 }
 
 /// 把 OAuth token 存进系统钥匙串，让 git（osxkeychain）推送时自动取用。

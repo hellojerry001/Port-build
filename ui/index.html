@@ -160,7 +160,7 @@
             <div class="set-row-note">新建仓库时使用的默认分支名</div>
           </div>
           <input class="input is-small" type="text" id="gsBranch" data-k="defaultBranch"
-                 data-oninput="gs-field" placeholder="main" autocomplete="off" />
+                 data-oninput="gs-field" data-onchange="gs-field-save" placeholder="main" autocomplete="off" />
         </div>
 
         <div class="set-divider"></div>
@@ -186,6 +186,62 @@
           <button class="switch" id="gsFirst" role="switch" aria-checked="false"
                   data-k="autoFirstCommit" data-act="gs-toggle" title="自动首次提交"></button>
         </div>
+      </div>
+    </div>
+
+    <!-- 托管设置：发布按钮把站点发到哪儿 -->
+    <div class="set-section">
+      <div class="set-section-title">托管设置</div>
+
+      <div class="set-card is-list">
+        <!-- 托管方式：二选一，用 chip 表示（与发布弹窗里的产物选择同一套控件） -->
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">托管方式</div>
+            <div class="set-row-note" id="hsNote">发布时把站点发到哪儿</div>
+          </div>
+          <div class="chip-row" id="hsChips"></div>
+        </div>
+
+        <div class="set-divider"></div>
+
+        <!-- GitHub Pages 产物分支 -->
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">产物分支</div>
+            <div class="set-row-note">GitHub 托管时，静态产物推到哪个分支（不动默认分支）</div>
+          </div>
+          <input class="input is-small" type="text" id="hsBranch" data-k="ghBranch"
+                 data-oninput="gs-field" data-onchange="gs-field-save" placeholder="gh-pages" autocomplete="off" />
+        </div>
+
+        <div class="set-divider"></div>
+
+        <!-- 新建仓库名前缀 -->
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">新建仓库名前缀</div>
+            <div class="set-row-note" id="hsPrefixNote">项目没有 GitHub 远端时，新建仓库的名字前缀</div>
+          </div>
+          <input class="input is-small" type="text" id="hsPrefix" data-k="ghRepoPrefix"
+                 data-oninput="gs-field" data-onchange="gs-field-save" placeholder="pb-" autocomplete="off" />
+        </div>
+
+        <div class="set-divider"></div>
+
+        <!-- 自动开启 Pages -->
+        <div class="set-row">
+          <div class="set-main">
+            <div class="set-row-label">自动开启 GitHub Pages</div>
+            <div class="set-row-note">推完分支后自动把 Pages 来源指到该分支；关掉则需自己去仓库设置里点</div>
+          </div>
+          <button class="switch" id="hsAutoPages" role="switch" aria-checked="false"
+                  data-k="ghAutoPages" data-act="gs-toggle" title="自动开启 GitHub Pages"></button>
+        </div>
+      </div>
+
+      <div class="set-foot-note" id="hsHint">
+        免费账号的 GitHub Pages 只支持 <b>public</b> 仓库；首次开启后约 1 分钟构建完成。
       </div>
     </div>
 
@@ -446,11 +502,18 @@
 <!-- ============================== 发布 ============================== -->
 <div class="overlay" id="pubModal">
   <div class="modal is-publish">
-    <h3 class="modal-title">发布到线上 · 临时链接</h3>
+    <h3 class="modal-title" id="pubTitle">发布到线上</h3>
 
     <div class="field">
       <label class="field-label">项目</label>
       <div class="field-static" id="pubName"></div>
+    </div>
+
+    <!-- 托管方式：默认跟随设置页，也可以只为这一次改（不想为了试一次跑去设置页） -->
+    <div class="field">
+      <label class="field-label">托管方式</label>
+      <div class="chip-row" id="pubHostChips"></div>
+      <div class="field-hint" id="pubHostHint"></div>
     </div>
 
     <div class="field">
@@ -475,7 +538,7 @@
       <button class="btn is-primary" id="pubBtn" data-act="pub-btn">发布</button>
     </div>
 
-    <div class="pub-tip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>（以结果里的倒计时为准）；
+    <div class="pub-tip" id="pubFootTip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>（以结果里的倒计时为准）；
       失效前点结果里的「认领」登录 Cloudflare 即可转永久（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。</div>
   </div>
 </div>
@@ -491,8 +554,9 @@
 
     <div class="pl-list" id="plList"></div>
 
-    <div class="pub-tip">临时链接由 Cloudflare 匿名临时账号承载，<b>未认领则 60 分钟后连同部署一起被删除</b>
-      （列表里会标成「已过期」）。「移除」只删本地记录，不影响 Cloudflare 上的部署。</div>
+    <div class="pub-tip">Cloudflare 临时链接由匿名临时账号承载，<b>未认领则 60 分钟后连同部署一起被删除</b>
+      （列表里会标成「已过期」）；GitHub Pages 是长期托管，不受此限。
+      「移除」只删本地记录，不影响云上的部署。</div>
 
     <div class="modal-foot">
       <button class="btn" data-act="publish-list-close">关闭</button>

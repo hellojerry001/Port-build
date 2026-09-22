@@ -1,11 +1,20 @@
 /* =============================================================================
-   publish.js · 发布到 Cloudflare 临时链接 + 发布记录
+   publish.js · 发布站点（Cloudflare 临时链接 / GitHub Pages）+ 发布记录
    -----------------------------------------------------------------------------
+   托管方式默认取设置页的偏好，也可以在弹窗里**只对这一次**改（pubHosting）。
    发布记录持久化在 ~/.portbutler/publishes.json（后端 publishes.rs）。
    列表要同时渲染到两处：弹窗 #plList 与页面 #plListPage，故渲染函数接收容器。
    ============================================================================= */
 
-let pubDone = false;   // 发布成功后，弹窗底部按钮的语义从「发布」变为「关闭」
+let pubDone = false;    // 发布成功后，弹窗底部按钮的语义从「发布」变为「关闭」
+let pubHosting = "";    // 本次发布用的托管方式（空 = 还没读到偏好）
+let pubGh = null;       // gh_publish_preview 的结果：目标仓库、分支、预测地址
+
+/* 托管方式的展示文案。key 与后端 git.rs 的 HOSTING_* 一一对应 */
+const PUB_HOSTINGS = [
+  { key: "cloudflare", label: "Cloudflare 临时链接" },
+  { key: "github",     label: "GitHub Pages" },
+];
 
 /* ============================== 发布弹窗 ============================== */
 
@@ -16,14 +25,70 @@ function openPublish(id) {
   pubId = id;
   pubProbe = null;
   pubDone = false;
+  pubHosting = "";
+  pubGh = null;
   $("pubName").textContent = p.name;
   $("pubPath").value = "";
   $("distChips").innerHTML = "";
   $("pubStatus").innerHTML = "";
   $("pubBtn").disabled = false;
   $("pubBtn").textContent = "发布";
+  renderPubHost();
   openModal("pubModal");
+  loadPubHosting(p);
   probeDists();   // 打开即自动探测构建产物并回填
+}
+
+/* 读托管偏好与目标仓库。两项都不阻塞弹窗打开 —— 先渲染默认态，回来了再刷新 */
+async function loadPubHosting(p) {
+  try {
+    pubGh = await invoke("gh_publish_preview", { projectPath: p.path, projectName: p.name });
+    if (!pubHosting) pubHosting = pubGh.hosting || "cloudflare";
+  } catch (_) {
+    // 预览失败不影响发布：后端发布时会自己算一遍
+    if (!pubHosting) pubHosting = "cloudflare";
+  }
+  renderPubHost();
+}
+
+function renderPubHost() {
+  const cur = pubHosting || "cloudflare";
+  const box = $("pubHostChips");
+  if (!box) return;
+
+  box.innerHTML = PUB_HOSTINGS.map(h =>
+    '<button class="' + cls("chip", h.key === cur && "is-on") + '"' +
+    dataAttrs({ act: "pub-host-pick", key: h.key }) + ">" + esc(h.label) + "</button>").join("");
+
+  const hint = $("pubHostHint");
+  const tip = $("pubFootTip");
+  const title = $("pubTitle");
+  if (cur === "github") {
+    hint.className = cls("field-hint", pubGh && !pubGh.url && "is-bad");
+    // 地址另起一行：和说明文字挤在同一行换行时，中间会空出一大段
+    hint.innerHTML = pubGh
+      ? esc(pubGh.hint) + (pubGh.url ? "<br>目标地址：" + esc(pubGh.url) : "")
+      : "长期托管：产物会推到仓库的产物分支，由 GitHub Pages 提供访问";
+    if (title) title.textContent = "发布到线上 · GitHub Pages";
+    if (tip) {
+      tip.innerHTML = "发布到 GitHub Pages：<b>长期有效</b>，不需要认领。" +
+        "免费账号仅支持 public 仓库（没有远端时会新建一个）；" +
+        "首次开启 Pages 后约需 1 分钟构建，期间访问可能 404。" +
+        "<br>产物会被强制提交（忽略 .gitignore），并自动补一个 <code>.nojekyll</code>，" +
+        "否则下划线开头的资源目录（如 Next 的 <code>_next</code>）会被 Jekyll 吃掉。";
+    }
+  } else {
+    hint.className = cls("field-hint", "is-good");
+    hint.textContent = pubGh
+      ? "匿名临时部署，约 60 分钟后失效；窗口期内可认领为永久"
+      : "匿名临时部署，默认 60 分钟自动失效";
+    if (title) title.textContent = "发布到线上 · Cloudflare 临时链接";
+    if (tip) {
+      tip.innerHTML = "部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>" +
+        "（以结果里的倒计时为准）；失效前点结果里的「认领」登录 Cloudflare 即可转永久" +
+        "（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。";
+    }
+  }
 }
 
 function closePublish() { closeModal("pubModal"); }
@@ -94,16 +159,23 @@ async function doPublish() {
   if (!dist) return toast("请填写部署目录");
 
   const proj = projects.find(x => x.id === pubId);
+  const hosting = pubHosting || "cloudflare";
+  const isGh = hosting === "github";
+
   $("pubBtn").disabled = true;
   $("pubBtn").textContent = "发布中…";
-  $("pubStatus").innerHTML =
-    '<div class="pub-loading">正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…</div>';
+  $("pubStatus").innerHTML = isGh
+    ? '<div class="pub-loading">正在推送到 GitHub（大产物目录上传需要一会儿）…</div>'
+    : '<div class="pub-loading">正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…</div>';
 
   try {
     const r = await invoke("publish_project", {
       distPath: dist,
       projectId: proj ? proj.id : "",
       projectName: proj ? proj.name : "",
+      projectPath: proj ? proj.path : "",
+      hosting,                                  // 本次选的方式（空则后端读设置）
+      branch: pubGh ? pubGh.branch : "",
     });
 
     if (r.ok && r.url) {
@@ -122,22 +194,35 @@ async function doPublish() {
   }
 }
 
-/* 结果区：URL / 认领链接 + 复制、打开按钮；临时链接带倒计时 */
+/* 结果区：URL /（Cloudflare 才有）认领链接 + 复制、打开按钮；临时链接带倒计时 */
 function showPubResult(r) {
-  const isTemp = !!r.claimUrl;
+  // GitHub Pages 是长期托管：没有认领链接，也没有失效时间
+  const isGh = r.hosting === "github";
+  const isTemp = !isGh && !!r.claimUrl;
   // 真实窗口时长由后端从 wrangler 输出解析（复用旧临时账号时会短于 60 分钟）
   const expiry = r.expiresAt || (Date.now() + 60 * 60 * 1000);
   const mins = Math.max(1, Math.round((expiry - Date.now()) / 60000));
 
-  let html = isTemp
-    ? '<div class="pub-ok">✅ 发布成功，临时链接约 ' + mins + " 分钟后失效</div>"
-    : '<div class="pub-ok">✅ 发布成功，已部署到你的 Cloudflare 账号（长期有效）</div>';
+  let html;
+  if (isGh) {
+    html = '<div class="pub-ok">✅ 已发布到 GitHub Pages，长期有效</div>';
+  } else if (isTemp) {
+    html = '<div class="pub-ok">✅ 发布成功，临时链接约 ' + mins + " 分钟后失效</div>";
+  } else {
+    html = '<div class="pub-ok">✅ 发布成功，已部署到你的 Cloudflare 账号（长期有效）</div>';
+  }
 
-  html += urlField("Website URL（任何人可访问）", "pubUrl", r.url,
+  html += urlField(isGh ? "站点地址（任何人可访问）" : "Website URL（任何人可访问）",
+    "pubUrl", r.url,
     UI.btn("复制", { act: "copy-input", data: { target: "pubUrl" } }),
     UI.btn("打开", { variant: "ghost", act: "open-url", data: { url: r.url } }));
 
-  if (isTemp) {
+  if (isGh) {
+    if (r.note) {
+      // 目标仓库 / 分支 / Pages 开启结果；Pages 没开成也在这里说明怎么手动开
+      html += '<div class="pub-tip">' + esc(r.note).replace(/\n/g, "<br>") + "</div>";
+    }
+  } else if (isTemp) {
     html += urlField("认领链接（窗口期内登录 Cloudflare 可转永久）", "pubClaim", r.claimUrl,
       UI.btn("复制", { act: "copy-input", data: { target: "pubClaim" } }),
       UI.btn("认领", { variant: "ghost", act: "open-url", data: { url: r.claimUrl } }));
@@ -203,6 +288,11 @@ function pubBadgeState(r, now) {
   return { text: "剩余 " + Math.round(left / 60000) + " 分钟", variant: "" };
 }
 
+/* 托管来源短名。老记录没有 hosting 字段，按 cloudflare 显示（后端也是这么兜的） */
+function pubSourceName(r) {
+  return r.hosting === "github" ? "GitHub Pages" : "Cloudflare";
+}
+
 function renderPublishes() {
   ["plList", "plListPage"].forEach(id => {
     const box = $(id);
@@ -255,6 +345,7 @@ function renderPubInto(box) {
     return '<div class="' + cls("pl-item", dead && "is-dead") + '">' +
         '<div class="pl-top">' +
           '<span class="pl-proj">' + esc(r.projectName || r.id) + "</span>" +
+          '<span class="pl-src">' + esc(pubSourceName(r)) + "</span>" +
           UI.badge(st.text, st.variant) +
         "</div>" +
         '<div class="pl-url">' + esc(r.url) + "</div>" +
@@ -328,6 +419,13 @@ on("publish-history", () => { closePublish(); openPublishList(); });
 on("pub-btn",         () => (pubDone ? closePublish() : doPublish()));
 on("dist-probe",      () => probeDists());
 on("dist-pick",       el => { $("pubPath").value = el.dataset.path; refreshPubHint(); });
+
+/* 本次发布的托管方式：只改 pubHosting，不动设置页里的偏好 */
+on("pub-host-pick", el => {
+  if (pubDone) return;                 // 已经发完了，别再改
+  pubHosting = el.dataset.key || "cloudflare";
+  renderPubHost();
+});
 
 on("publish-list-open",  () => openPublishList());
 on("publish-list-close", () => closePublishList());
