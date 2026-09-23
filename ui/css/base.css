@@ -24,52 +24,7 @@ body {
   font-size: var(--fs-13);
   line-height: var(--lh-15);
   display: flex;
-  flex-direction: column;
   height: 100vh;
-  overflow: hidden;
-}
-
-/* 沉浸式标题栏：用 Overlay 标题栏 + 隐藏标题后，系统红绿灯会浮在顶部。
-   这里用一块与 body 同色的区域把它「垫实」，并声明为拖拽区。 */
-.titlebar {
-  flex: none;
-  display: flex;
-  height: var(--titlebar-h);
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.titlebar-rail {
-  flex: none;
-  width: var(--rail-w);
-  background: var(--c-rail);
-}
-
-.titlebar-main {
-  flex: 1;
-  min-width: 0;
-  background: var(--c-app-bg);
-}
-
-.titlebar,
-.titlebar-rail,
-.titlebar-main,
-[data-tauri-drag-region] {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.titlebar-rail *,
-.titlebar-main * {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-/* 标题栏下的主布局 */
-.app-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
   overflow: hidden;
 }
 
