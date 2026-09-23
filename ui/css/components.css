@@ -17,7 +17,9 @@
   flex-direction: column;
   align-items: center;
   gap: var(--px-4);
-  padding: var(--px-14) 0 var(--px-12);
+  /* 顶部为红绿灯空出 Overlay 标题栏高度，再留 12px 呼吸感；
+     rail 颜色一直通到窗口最上沿，只有图标从下方开始 */
+  padding: calc(var(--titlebar-h) + var(--px-12)) 0 var(--px-12);
   z-index: var(--z-rail);
 }
 
@@ -694,6 +696,7 @@
 .overlay {
   position: fixed;
   inset: 0;
+  z-index: 100;
   background: var(--c-scrim);
   display: none;
   align-items: center;
@@ -1084,6 +1087,7 @@
 /* ============================== 全局提示 ============================== */
 .toast {
   position: fixed;
+  z-index: 200;
   bottom: var(--px-24);
   left: 50%;
   transform: translateX(-50%);

@@ -10,6 +10,32 @@ on("pick-folder", el => chooseFolder(el.dataset.input, el.dataset.prompt));
 /* 工具栏「刷新」：项目列表 + 端口雷达一起拉 */
 on("refresh-all", () => refreshAll());
 
+/* 全屏同步：macOS「原生全屏」下没有红绿灯，顶部要收掉为其预留的高度。
+   ⚠️ 不能用后端 is_fullscreen：Tauri 的窗口全屏标志在「铺满屏幕但仍带标题栏」
+   的状态下同样是 true，而那时红绿灯还在，收掉内边距会把内容压在红绿灯下。
+   ⚠️ 也不能用 outerWidth/outerHeight：WKWebView 里恒为 0。
+   可靠信号：原生全屏时窗口盖住整屏（含菜单栏），innerHeight 才会等于 screen.height。 */
+let fsTimer = 0;
+function syncFullscreen() {
+  // 进出全屏的动画期间会连续触发 resize，防抖到最后一帧再判
+  clearTimeout(fsTimer);
+  fsTimer = setTimeout(() => {
+    const nativeFs = Math.abs(window.innerHeight - window.screen.height) <= 1;
+    document.documentElement.classList.toggle("is-fullscreen", nativeFs);
+
+    // TEMP-DIAG: 临时记录几何量，验证完删除
+    invoke("is_fullscreen", {
+      note: JSON.stringify({
+        nativeFs,
+        innerW: window.innerWidth, innerH: window.innerHeight,
+        screenW: window.screen.width, screenH: window.screen.height,
+        screenY: window.screenY, outerH: window.outerHeight,
+      }),
+    }).catch(() => {});
+  }, 250);
+}
+window.addEventListener("resize", syncFullscreen);
+
 /* 删除确认是唯一的模态操作，Esc 关闭时保持与点击「取消」一致 */
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
@@ -28,6 +54,7 @@ function boot() {
   goPage("projects");
   refreshAll();
   refreshPublishes();
+  syncFullscreen();   // 启动时先对一次全屏状态（可能就是从全屏恢复的）
 
   setInterval(refreshAll, 5000);   // 状态自动巡检
 

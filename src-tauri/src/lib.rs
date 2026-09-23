@@ -43,6 +43,22 @@ fn toggle_main(app: &AppHandle) {
     }
 }
 
+/// 当前是否处于 macOS 全屏：前端据此收掉为红绿灯预留的顶部高度
+#[tauri::command]
+fn is_fullscreen(window: tauri::Window, note: Option<String>) -> bool {
+    let fs = window.is_fullscreen().unwrap_or(false);
+    // TEMP-DIAG: 临时把探测结果写日志，验证完删除
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/pb-fs.log")
+    {
+        use std::io::Write;
+        let _ = writeln!(f, "fs={} size={:?} note={:?}", fs, window.inner_size(), note);
+    }
+    fs
+}
+
 pub fn run() {
     tauri::Builder::default()
         // 进程表从磁盘恢复：应用重启后仍认得上一次拉起来的项目
@@ -89,6 +105,7 @@ pub fn run() {
             update::download_status,
             update::cancel_download,
             install::install_update,
+            is_fullscreen,
             git::git_status,
             git::git_repo_states,
             git::git_changed_files,

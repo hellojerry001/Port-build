@@ -9,7 +9,10 @@
 .app-main {
   flex: 1;
   min-width: 0;
-  padding: var(--px-20) var(--px-20) var(--px-26);
+  /* 顶部内边距比标题栏高度还少 4px：标题比 rail 更低 16px，更贴近顶部。
+     红绿灯在 x≈14~66，主内容从 x=84 起，水平方向不重叠，所以可以压过来；
+     主内容背景仍通到窗口最上沿，只有文字从下方开始。 */
+  padding: calc(var(--titlebar-h) - var(--px-4)) var(--px-20) var(--px-26);
   overflow-y: auto;
 }
 

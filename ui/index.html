@@ -11,10 +11,9 @@
 <script src="js/theme.js"></script>
 </head>
 <body>
-<!-- 透明拖拽条：Overlay 标题栏下红绿灯浮在左上角，整条透明、点击可拖动窗口 -->
+<!-- 顶部透明拖拽条：绝对定位覆盖在内容上方，仅用于拖动窗口，不占位 -->
 <div class="titlebar" data-tauri-drag-region></div>
 
-<div class="app-body">
 <!-- 左侧导航（由 rail.js 的 renderRail() 渲染） -->
 <nav class="rail" id="rail"></nav>
 
@@ -364,8 +363,6 @@
     </div>
   </section>
 </main>
-</div>
-<!-- /.app-body -->
 
 <!-- ============================== 从模板新建 ============================== -->
 <div class="overlay" id="tplModal">

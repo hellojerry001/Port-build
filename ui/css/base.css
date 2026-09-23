@@ -23,16 +23,21 @@ body {
   font-family: var(--ff-sans);
   font-size: var(--fs-13);
   line-height: var(--lh-15);
+  position: relative;
   display: flex;
-  flex-direction: column;
   height: 100vh;
   overflow: hidden;
 }
 
-/* Overlay 透明标题栏的拖拽条：完全透明，只负责留出红绿灯空间 + 拖动窗口 */
+/* Overlay 透明标题栏的拖拽条：绝对定位覆盖在内容上方，透明、不占位，
+   仅用于拖动窗口；rail / 主内容各自顶到窗口最上沿，颜色自然透出。 */
 .titlebar {
-  flex: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   height: var(--titlebar-h);
+  z-index: var(--z-titlebar, 20);
   background: transparent;
   -webkit-app-region: drag;
   app-region: drag;
@@ -43,13 +48,11 @@ body {
   app-region: no-drag;
 }
 
-/* 标题栏下的主布局 */
-.app-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
+/* 全屏（macOS 原生全屏）没有红绿灯，收掉为其预留的顶部高度，只留一点呼吸间距；
+   拖拽条也一并归零——全屏不可拖动窗口，否则会盖住顶部内容拦掉点击。 */
+html.is-fullscreen .titlebar { height: 0; }
+html.is-fullscreen .rail { padding-top: var(--px-12); }
+html.is-fullscreen .app-main { padding-top: var(--px-12); }
 
 /* 原生控件的字体族刻意不覆写：原实现就依赖 UA 默认，改了会改变按钮/输入框的字形 */
 
