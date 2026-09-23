@@ -7,7 +7,8 @@
   "app": {
     "withGlobalTauri": true,
     "windows": [{ "title": "VibeButler", "width": 980, "height": 680,
-                  "minWidth": 860, "minHeight": 560 }],
+                  "minWidth": 860, "minHeight": 560,
+                  "titleBarStyle": "Overlay", "hiddenTitle": true }],
     "security": { "csp": null }
   },
   "bundle": {

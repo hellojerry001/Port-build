@@ -11,6 +11,13 @@
 <script src="js/theme.js"></script>
 </head>
 <body>
+<!-- 沉浸式标题栏：左侧与 rail 同色、右侧与主内容区同色，为系统红绿灯留空并作为拖拽区 -->
+<div class="titlebar">
+  <div class="titlebar-rail" data-tauri-drag-region></div>
+  <div class="titlebar-main" data-tauri-drag-region></div>
+</div>
+
+<div class="app-body">
 <!-- 左侧导航（由 rail.js 的 renderRail() 渲染） -->
 <nav class="rail" id="rail"></nav>
 
@@ -360,6 +367,7 @@
     </div>
   </section>
 </main>
+</div>
 
 <!-- ============================== 从模板新建 ============================== -->
 <div class="overlay" id="tplModal">
