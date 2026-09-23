@@ -24,7 +24,30 @@ body {
   font-size: var(--fs-13);
   line-height: var(--lh-15);
   display: flex;
+  flex-direction: column;
   height: 100vh;
+  overflow: hidden;
+}
+
+/* Overlay 透明标题栏的拖拽条：完全透明，只负责留出红绿灯空间 + 拖动窗口 */
+.titlebar {
+  flex: none;
+  height: var(--titlebar-h);
+  background: transparent;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* 标题栏下的主布局 */
+.app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
   overflow: hidden;
 }
 
