@@ -22,16 +22,6 @@ function syncFullscreen() {
   fsTimer = setTimeout(() => {
     const nativeFs = Math.abs(window.innerHeight - window.screen.height) <= 1;
     document.documentElement.classList.toggle("is-fullscreen", nativeFs);
-
-    // TEMP-DIAG: 临时记录几何量，验证完删除
-    invoke("is_fullscreen", {
-      note: JSON.stringify({
-        nativeFs,
-        innerW: window.innerWidth, innerH: window.innerHeight,
-        screenW: window.screen.width, screenH: window.screen.height,
-        screenY: window.screenY, outerH: window.outerHeight,
-      }),
-    }).catch(() => {});
   }, 250);
 }
 window.addEventListener("resize", syncFullscreen);

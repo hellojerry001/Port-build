@@ -1,16 +1,15 @@
 {
-  "version": "0.5.0",
-  "date": "2026-09-22",
+  "version": "0.5.1",
+  "date": "2026-09-23",
   "notes": [
-    "GitHub 账号管理移入「设置 > GitHub 设置」，与其他设置集中在一处",
-    "解绑 GitHub 账号改用自绘确认弹窗，修复点击「解绑」无反应的问题",
-    "解绑更彻底：可一并退出 gh CLI 登录；已有凭证但未记名时也能解绑",
-    "托管方式改为下拉选择，交互与主题切换一致",
-    "修复应用内绑定账号后凭证无法用于推送的问题"
+    "新增「安装并重启」：下载完成后一键就地替换并自动重开，不再出现 Gatekeeper 提示",
+    "顶部改为透明标题栏，红绿灯浮在左上角，界面更沉浸；进入原生全屏时自动收紧顶部间距",
+    "修复从浏览器下载后双击提示「已损坏，无法打开」的问题（应用已带 ad-hoc 签名）",
+    "本次升级仍需手动拖入 DMG 安装一次（旧版本尚未内置一键安装），此后版本即可一键升级"
   ],
-  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.0_aarch64.dmg",
-  "dmg_name": "VibeButler_0.5.0_aarch64.dmg",
-  "dmg_size": 5718726,
+  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.1_aarch64.dmg",
+  "dmg_name": "VibeButler_0.5.1_aarch64.dmg",
+  "dmg_size": 5725045,
   "min_macos": "12.0",
   "mandatory": false
 }
