@@ -88,12 +88,18 @@ function renderRepoRepos() {
 
   if (repoRepos === null) {
     note.textContent = "正在读本机仓库状态…";
-    body.innerHTML = '<tr><td colspan="5" class="empty-state is-compact">' + UI.spinner("读取中") + "</td></tr>";
+    body.innerHTML = '<tr><td colspan="5">' + UI.empty(UI.spinner("读取中"), { compact: true }) + "</td></tr>";
     return;
   }
   if (!repoRepos.length) {
     note.textContent = "还没有项目";
-    body.innerHTML = '<tr><td colspan="5" class="empty-state is-compact">先到「项目管理」里添加项目</td></tr>';
+    // ⚠️ 同 radar.js：td 不加 .empty-state（否则 colspan 失效、只在第一列居中）；
+    // 不用 compact，图标与其它页面同尺寸（46px）。
+    body.innerHTML =
+      '<tr><td colspan="5">' + UI.emptyState({
+        title: "还没有项目",
+        desc: "先到「项目管理」里添加项目，这里会列出它们的 git 仓库状态"
+      }) + "</td></tr>";
     return;
   }
   const repos = repoRepos.filter(r => r.isRepo).length;

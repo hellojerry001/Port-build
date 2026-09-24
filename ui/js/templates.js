@@ -357,10 +357,11 @@ function renderTplLibrary() {
     : "";
 
   if (!scaffolds.length) {
-    grid.innerHTML = UI.empty(
-      "还没有模板。点右上角「＋ 新增模板」把本机项目或 .zip 导进来，" +
-      "也可以直接把模板目录放进 ~/.portbutler/scaffolds（含 .pb-scaffold.json）",
-      { span: true });
+    grid.innerHTML = UI.emptyState({
+      title: "还没有模板",
+      desc: "点右上角「＋ 新增模板」把本机项目或 .zip 导进来，也可以直接把模板目录放进 ~/.portbutler/scaffolds（含 .pb-scaffold.json）",
+      span: true
+    });
     return;
   }
 

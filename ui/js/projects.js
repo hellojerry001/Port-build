@@ -7,9 +7,9 @@ const OP_CMD = { start: "start_project", stop: "stop_project" };
 /* 两类项目：Web 起 HTTP 服务用浏览器看，Mac 起原生窗口并产出 .dmg */
 const KINDS = [
   { key: "web", label: "Web 项目", sub: "Web 应用 · 端口与浏览器预览",
-    empty: "还没有 Web 项目，点右上角「从模板新建」或「手动添加」" },
+    empty: { title: "还没有 Web 项目", desc: "点右上角「从模板新建」或「手动添加」开始" } },
   { key: "mac", label: "Mac 项目", sub: "Mac 桌面应用 · 开发预览与 DMG 打包",
-    empty: "还没有 Mac 项目，点右上角「手动添加」把 Tauri 项目登记进来" },
+    empty: { title: "还没有 Mac 项目", desc: "点右上角「手动添加」把 Tauri 项目登记进来" } },
 ];
 
 const TAB_KEY = "pb.projKind";
@@ -82,7 +82,7 @@ function renderProjects() {
   const list = projects.filter(p => kindOf(p) === projKind);
 
   if (!list.length) {
-    grid.innerHTML = UI.empty(kindMeta(projKind).empty, { span: true });
+    grid.innerHTML = UI.emptyState({ ...kindMeta(projKind).empty, span: true });
     return;
   }
 

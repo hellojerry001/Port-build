@@ -153,6 +153,12 @@
    浮层向右溢出会戳出卡片边界，改成向左展开 */
 .sel-popover.is-right { left: auto; right: 0; }
 
+/* 向上展开：触发器下方放不下整个浮层时（如设置页最底部的「主题」），
+   改成贴着触发器上沿往上弹，避免被滚动容器底边切掉、还得滚动页面。
+   由 openDrop() 量完可用空间后加类，与 .is-right 同构。
+   （hosting 用 left/right，这里是 top/bottom，两者可叠加。） */
+.sel-popover.is-up { top: auto; bottom: calc(100% + var(--px-4)); }
+
 .sel-opt {
   display: flex;
   align-items: center;
@@ -534,20 +540,89 @@
 .table tbody tr:hover td { background: var(--c-surface-3); }
 .table tbody tr:hover td:first-child { border-radius: var(--r-8) 0 0 var(--r-8); }
 .table tbody tr:hover td:last-child { border-radius: 0 var(--r-8) var(--r-8) 0; }
+/* 空态行只有一个 <td colspan=N>，它**同时**命中 :first-child 与 :last-child；
+   而上面两条同优先级、后写的 :last-child 胜出 → 左边两个角被吃掉
+   （实测 hover 时 topLeft/bottomLeft=0、topRight/bottomRight=8，且 overflow:visible 排除裁剪）。
+   这条更具体（0,4,3 > 0,3,3），让单格行四角都圆。 */
+.table tbody tr:hover td:first-child:last-child { border-radius: var(--r-8); }
 .table .col-pid { color: var(--c-text-3); }
 .table .col-kill { width: var(--px-90); }
 
 /* ============================== 空态 ============================== */
+/* 结构：图标（线性 SVG）+ 粗体标题 + 浅灰说明，统一居中。参考图里的「文档折角」图标
+   用 currentColor + 透明度实现，随主题变色，不加彩色。 */
 .empty-state {
-  color: var(--c-text-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: var(--px-40) 0;
 }
 
-.empty-state.is-compact { padding: var(--px-20) 0; }
+.empty-state.is-compact {
+  padding: var(--px-24) 0;
+}
 
-/* 空态直接落在表格单元格里时，需要压过 .table td 的内边距 */
-.table td.empty-state { padding: var(--px-40) 0; }
+/* ⚠️ 令牌刻度里没有 --px-48 / --px-32（从 46 直接跳到 90），
+   写了会被整条声明丢弃 → 图标尺寸失效、撑成空白容器的一大块。用最近可用值。 */
+.empty-icon {
+  width: var(--px-46);
+  height: var(--px-46);
+  margin-bottom: var(--px-12);
+  /* --c-text-3 本身已是「浅色下 35% 黑 / 深色下 32% 白」的弱化灰；
+     再叠一层 0.35 透明度会把深色下的图标压到几乎看不见（有效透明度≈0.11）。
+     这里用 0.5 —— 浅色≈#D2D2D2（贴近原图 #D4D6DE），深色下也清晰。 */
+  color: var(--c-text-3);
+  opacity: 0.5;
+}
+
+.empty-state.is-compact .empty-icon {
+  width: var(--px-34);
+  height: var(--px-34);
+  margin-bottom: var(--px-8);
+}
+
+/* 图标是**填充型**字形（fill + evenodd 画出描边效果），不是 stroke 图标：
+   必须 fill:currentColor，否则吃 SVG 默认黑、深色主题下变成黑块。 */
+.empty-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  stroke: none;
+}
+
+.empty-title {
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semi);
+  line-height: var(--lh-15);
+  margin-bottom: var(--px-6);
+}
+
+.empty-state.is-compact .empty-title {
+  font-size: var(--fs-13);
+}
+
+.empty-desc {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+  line-height: var(--lh-15);
+  /* 320px 会把「…这里会列出它们的 git 仓库状态」(自然宽 342px) 和
+     「…关掉弹窗也找得回。」(331px) 末尾两三个字挤到第二行，出现「状态」「回。」
+     独占一行的尴尬。实测各条的描述自然单行宽度：
+     172 / 184 / 245 / 246（短句）· 331 · 342 · 754（模板库那条注定多行）。
+     放到 420px：短句与 331/342 都一行放得下，754 的超长句仍正常折行。 */
+  max-width: 420px;
+}
+
+/* ⚠️ 空态放进 <td colspan> 时，td **必须保持 table-cell**：给它加 .empty-state
+   （display:flex）会让 colspan 失效，内容只在**第一列**里居中 → 看起来明显偏左
+   （2026-09-24 用户截图反馈「没水平居中」）。做法：td 不加类，居中交给 td 内的
+   .empty-state（它是 block，自然撑满跨列后的整行宽度，再自己居中对齐）。 */
+.table td > .empty-state {
+  padding: var(--px-34) 0;
+}
 
 /* ============================== 模板库 ============================== */
 /* 卡片比项目卡片窄一档：模板只有名称 / 说明 / 两条参数，不需要 320px */
@@ -997,13 +1072,6 @@
 .pl-ops { display: flex; gap: var(--px-4); margin-top: var(--px-9); }
 .pl-ops .btn { padding: var(--px-3) var(--px-10); font-size: var(--fs-11); }
 
-.pl-empty {
-  color: var(--c-text-3);
-  text-align: center;
-  padding: var(--px-34) 0;
-  font-size: var(--fs-12);
-}
-
 /* 页面形态：不限高、自适应多列 */
 .pl-list.is-page {
   max-height: none;
@@ -1016,7 +1084,7 @@
 }
 
 .pl-list.is-page .pl-item { margin-bottom: 0; background: var(--c-surface-1); }
-.pl-list.is-page .pl-empty { grid-column: 1 / -1; }
+/* 发布列表的空态统一走 .empty-state + .span-all，不再单独维护 .pl-empty */
 
 /* ============================== 危险操作确认 ============================== */
 .del-box {
@@ -1518,18 +1586,26 @@
 
 /* -------- 仓库状态表 -------- */
 
-/* 通栏高亮：表格左右各负 12px 外边距，单元格恢复默认 12px 内边距。
-   效果 = 文字仍与卡片 16px 内容边对齐（跟 set-head 同一竖线），
-   但 hover 高亮条向两侧多延伸 12px，文字不再顶在色条两端；
-   色条距卡片圆角边还留 4px，不会贴到卡片边缘。 */
+/* 通栏高亮：表格左右各负 8px 外边距，单元格水平内边距同步收到 8px。
+   效果 = 文字位置**完全不变**（仍与卡片 16px 内容边、set-head 同一竖线：
+   表左移 8 再补 8 内边距，抵消回原位），但 hover 高亮条只在两侧各外扩 8px，
+   距卡片圆角边正好 8px —— 与底部留白（padding-bottom: 8px）等宽。 */
 .set-card .table {
   /* width:100% + 负边距会过约束（LTR 下 margin-right 被改写成正值，右侧收不出去），
-     必须显式把宽度加回来：内容宽 + 两侧各 12px */
-  width: calc(100% + var(--px-12) * 2);
-  margin: 0 calc(var(--px-12) * -1);
+     必须显式把宽度加回来：内容宽 + 两侧各 8px */
+  width: calc(100% + var(--px-8) * 2);
+  margin: 0 calc(var(--px-8) * -1);
   /* 底部留白必须用 padding：set-card 无 padding-bottom，margin-bottom 会
-     折叠出卡片外，最后一条 hover 高亮行就贴到卡片圆角底边了 */
+     折叠出卡片外，最后一条 hover 高亮行就贴到卡片圆角底边了。
+     这个 8px 同时就是「高亮条→卡片底边」的距离，两侧外边距必须与它一致。 */
   padding-bottom: var(--px-8);
+}
+
+/* 单元格水平内边距跟着收窄（12→8）：配合上面表格左移 8px，文字停在原位 */
+.set-card .table th,
+.set-card .table td {
+  padding-left: var(--px-8);
+  padding-right: var(--px-8);
 }
 
 /* 数字列：表头与单元格都要右对齐，只给 th 加类会两头对不上 */
@@ -1554,8 +1630,8 @@
 .set-mute { color: var(--c-text-3); }
 .set-num.is-warn { color: var(--c-warn-strong); }
 
-/* 表格里的空态由 .empty-state 自己撑高度，别再叠加单元格内边距 */
-.set-card .table td.empty-state { padding: var(--px-20) 0; }
+/* 表格空态的纵向留白统一由 td 内的 .empty-state 提供（见文件上半部分的
+   「空态放进 <td colspan>」注释）。td 不再单独覆盖内边距，避免破坏跨列居中。 */
 
 /* -------- 令牌入口 -------- */
 /* 箭头复用 .about-arrow —— 两处的跳转行视觉必须一致，

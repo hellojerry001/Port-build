@@ -2,12 +2,14 @@
   "version": "0.5.2",
   "date": "2026-09-24",
   "notes": [
-    "禁用整页文本选择：标题 / 卡片名 / 导航等装饰文本不再出现蓝色选中块（补齐 WebKit 前缀 -webkit-user-select）",
-    "输入框、路径、日志等需要复制的文本保持可选中"
+    "新增空状态：项目 / 模板库 / 发布记录 / 端口雷达 / 项目仓库 五处，统一「图标 + 标题 + 说明」",
+    "禁用整页文本选择：标题 / 卡片名 / 导航等装饰文本不再出现蓝色选中块，需复制的文本仍可选中",
+    "修复空态行 hover 高亮左侧缺圆角（表格单格行同时命中 first/last-child）",
+    "设置页下拉（主题 / 托管方式）下方空间不足时自动向上展开，不再需要滚动页面"
   ],
   "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.2_aarch64.dmg",
   "dmg_name": "VibeButler_0.5.2_aarch64.dmg",
-  "dmg_size": 5725726,
+  "dmg_size": 5728932,
   "min_macos": "12.0",
   "mandatory": false
 }

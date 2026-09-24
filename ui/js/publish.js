@@ -315,10 +315,11 @@ function renderPubCount() {
 
 function renderPubInto(box) {
   if (!publishes.length) {
-    box.innerHTML = UI.empty(
-      '还没有发布记录。<br>在项目卡片点「发布」后会记录在这里，关掉弹窗也找得回。', {});
-    box.firstChild.classList.add("pl-empty");
-    box.firstChild.classList.remove("empty-state");
+    box.innerHTML = UI.emptyState({
+      title: "还没有发布记录",
+      desc: "在项目卡片点「发布」后会记录在这里，关掉弹窗也找得回。",
+      span: true
+    });
     return;
   }
 

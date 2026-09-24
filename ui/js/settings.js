@@ -445,12 +445,44 @@ function renderDrop(name) {
     "</button>").join("");
 }
 
+/* 浮层与触发器之间的垂直间距（与 CSS 的 calc(100% + var(--px-4)) 一致） */
+const DROP_GAP = 4;
+
+/* 从元素往上找最近的「会裁剪内容」的祖先（滚动容器 / overflow 非 visible），
+   返回它在视口里的可见上下边界；没有就退回视口。
+   ⚠️ 不能只看 body —— body 是 overflow:hidden，真正的滚动容器是 .app-main。 */
+function clipBox(el) {
+  const vp = { top: 0, bottom: window.innerHeight };
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    if (getComputedStyle(node).overflowY !== "visible") {
+      const r = node.getBoundingClientRect();
+      return { top: Math.max(r.top, vp.top), bottom: Math.min(r.bottom, vp.bottom) };
+    }
+    node = node.parentElement;
+  }
+  return vp;
+}
+
 function openDrop(name) {
   const d = DROPS[name];
   renderDrop(name);
-  $(d.popoverId).classList.add("is-open");
-  $(d.popoverId).setAttribute("aria-hidden", "false");
-  $(d.triggerId).setAttribute("aria-expanded", "true");
+  const pop = $(d.popoverId);
+  const trg = $(d.triggerId);
+
+  pop.classList.remove("is-up");        // 先按默认的「向下」量一次真实高度
+  pop.classList.add("is-open");
+  pop.setAttribute("aria-hidden", "false");
+  trg.setAttribute("aria-expanded", "true");
+
+  /* 空间不够就向上翻转。只在「上方确实比下方更宽裕」时才翻 ——
+     否则上下都挤（极矮窗口）时反而会把浮层顶出顶部。 */
+  const box = clipBox(pop);
+  const t = trg.getBoundingClientRect();
+  const h = pop.getBoundingClientRect().height;
+  const below = box.bottom - t.bottom - DROP_GAP;
+  const above = t.top - box.top - DROP_GAP;
+  if (below < h && above > below) pop.classList.add("is-up");
 }
 
 function closeDrop(name) {
@@ -484,6 +516,15 @@ document.addEventListener("click", e => {
     if (e.target.closest("#" + DROPS[name].fieldId)) return;
     closeDrop(name);
   });
+});
+
+/* 窗口尺寸变化时，已展开的下拉重新判断方向（改窗口高度后翻转态会过期） */
+let dropResizeTimer = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(dropResizeTimer);
+  dropResizeTimer = setTimeout(() => {
+    Object.keys(DROPS).forEach(name => { if (dropIsOpen(name)) openDrop(name); });
+  }, 120);
 });
 
 /* 主题切换后同步本页显示（订阅时立即回调一次，所以首次渲染也会触发） */
