@@ -2,12 +2,12 @@
   "version": "0.5.2",
   "date": "2026-09-24",
   "notes": [
-    "修复标题栏 / 左侧导航顶部区域无法拖动窗口的问题（根因：Tauri 2 的 core 窗口命令需 capability 授权，已补齐）",
-    "现在可从窗口最顶部横条，或左侧导航顶部空白区按住拖动窗口"
+    "禁用整页文本选择：标题 / 卡片名 / 导航等装饰文本不再出现蓝色选中块（补齐 WebKit 前缀 -webkit-user-select）",
+    "输入框、路径、日志等需要复制的文本保持可选中"
   ],
   "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.2_aarch64.dmg",
   "dmg_name": "VibeButler_0.5.2_aarch64.dmg",
-  "dmg_size": 5743308,
+  "dmg_size": 5725726,
   "min_macos": "12.0",
   "mandatory": false
 }

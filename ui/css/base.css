@@ -9,7 +9,28 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-user-select: none;
   user-select: none;
+}
+
+/* 全局禁用文本选择：避免标题 / 卡片名 / 导航等装饰文本被蓝色选中块高亮
+   （即用户截图里看到的现象，根因是 Overlay 透明标题栏下页面文本默认可选）。
+   ⚠️ `*` 上的 user-select:none 会连带禁用 <input>/<textarea> 内选字，
+   导致输入框里无法选中/复制已有内容。因此把「需要可编辑或可复制」的
+   输入框与工具文本在此显式放开。组件级原本就放开的（.build-log / .del-path）
+   维持不变，这里只补齐缺失项。 */
+input,
+textarea,
+.input,
+.field-static,
+.del-name,
+.pub-tip,
+.set-row-note,
+.gp-detail,
+.about-foot,
+.about-link {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 html,
