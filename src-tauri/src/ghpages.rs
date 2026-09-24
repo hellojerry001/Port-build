@@ -62,6 +62,48 @@ pub fn normalize_repo_prefix(s: &str) -> String {
     }
 }
 
+/// 用户在发布弹窗里手填的仓库名 → 规范化。
+///
+/// GitHub 只接受 `[A-Za-z0-9._-]`；中文等字符会被直接拒绝，这里一律换成 `-`。
+/// ⚠️ 调用方**必须检查结果是否为空** —— 空表示「填的名字完全不可用」，
+/// 应当报错，而不是静默退回默认名（那会让用户以为改名生效了）。
+pub fn normalize_repo_name(s: &str) -> String {
+    let cleaned: String = s
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let is_edge = |c: char| matches!(c, '-' | '_' | '.');
+    cleaned
+        .trim_matches(is_edge)
+        .chars()
+        .take(100)
+        .collect::<String>()
+        .trim_end_matches(is_edge)
+        .to_string()
+}
+
+/// 没指定仓库名时的默认命名：`<前缀> + slugify(项目名)`，全中文名兜底成 `<前缀>site`。
+///
+/// ⚠️ `slugify` 只保留 ASCII —— 所以「CRM组件文档」「CRM客户管理」「CRM 移动端」
+/// 都会变成 `crm`，纯中文名则全部落到 `<前缀>site`。多个项目因此会共用同一个仓库、
+/// **互相覆盖站点**，这正是发布弹窗要提供「目标仓库」输入框的原因。
+pub fn default_repo_name(project_name: &str, prefix: &str) -> String {
+    let slug = slugify(project_name);
+    if slug.is_empty() {
+        format!("{prefix}site")
+    } else {
+        format!("{prefix}{slug}")
+    }
+}
+
 /// 从 git remote 地址解析 `(owner, repo)`，只认 github.com。
 ///
 /// 覆盖四种写法（`git remote get-url` 会原样返回用户当初 add 的那个）：
@@ -137,37 +179,71 @@ fn current_login() -> Result<String, String> {
         .ok_or_else(|| "响应里没有 login 字段".to_string())
 }
 
-/// 定出目标仓库：项目已有 GitHub 远端就用它（只往产物分支推，不碰 main），
-/// 否则按 `<前缀><项目名>` 新建一个 public 仓库（同名已存在则直接复用）。
-pub fn resolve_target(project_path: &str, project_name: &str, prefix: &str) -> Result<Target, String> {
-    if let Ok(remote) = git::origin_url(project_path) {
-        if let Some((owner, repo)) = parse_github_remote(&remote) {
-            return Ok(Target { owner, repo, created: false });
+/// 定出目标仓库。优先级：
+/// **用户手填的仓库名** > **项目已有的 GitHub 远端** > **按 `<前缀><项目名>` 新建**。
+///
+/// 手填名能压过「已有远端」，是因为默认命名会丢中文（`slugify` 只留 ASCII）：
+/// 多个中文项目名会落到同一个仓库，后发布者把先发布者的站点整个替换掉。
+pub fn resolve_target(
+    project_path: &str,
+    project_name: &str,
+    prefix: &str,
+    repo_override: Option<&str>,
+) -> Result<Target, String> {
+    let explicit = match repo_override.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(raw) => {
+            let n = normalize_repo_name(raw);
+            if n.is_empty() {
+                return Err(format!(
+                    "仓库名「{raw}」不合法：只能用字母、数字与 `-` `_` `.`（GitHub 不接受中文）\
+                     \n\n建议改用英文，例如 crm-admin。"
+                ));
+            }
+            n
+        }
+        None => String::new(),
+    };
+
+    let remote = git::origin_url(project_path)
+        .ok()
+        .and_then(|r| parse_github_remote(&r));
+
+    // 没改名 + 项目已有 GitHub 远端 → 复用远端（与旧行为完全一致，且不额外调 API）
+    if explicit.is_empty() {
+        if let Some((owner, repo)) = remote.as_ref() {
+            return Ok(Target { owner: owner.clone(), repo: repo.clone(), created: false });
         }
     }
 
-    let owner = current_login()?;
-    let slug = slugify(project_name);
-    let repo = if slug.is_empty() {
-        format!("{prefix}site")
-    } else {
-        format!("{prefix}{slug}")
+    // 改名时沿用远端仓库的 owner（改的是「这个仓库的名字」）；没有远端才用当前登录账号
+    let owner = match remote.as_ref() {
+        Some((o, _)) => o.clone(),
+        None => current_login()?,
     };
+    let repo = if explicit.is_empty() {
+        default_repo_name(project_name, prefix)
+    } else {
+        explicit
+    };
+    ensure_repo(&owner, &repo)
+}
 
-    // 幂等：同名仓库已经存在就直接用（用户上次发布建的，或本来就有的）
+/// 确保目标仓库存在（幂等）：已存在直接复用，不存在就建一个 public 仓库。
+///
+/// 必须是 public —— 免费账号的 Pages 只支持 public 仓库。
+fn ensure_repo(owner: &str, repo: &str) -> Result<Target, String> {
     let (code, _body) = git::gh_api(
         &format!("https://api.github.com/repos/{owner}/{repo}"),
         "GET",
         None,
     )?;
     if code == 200 {
-        return Ok(Target { owner, repo, created: false });
+        return Ok(Target { owner: owner.to_string(), repo: repo.to_string(), created: false });
     }
 
     let create_body = serde_json::json!({
         "name": repo,
         "description": "静态站点（由 VibeButler 发布）",
-        // 免费账号的 Pages 只支持 public 仓库，所以这里必须是 public
         "private": false,
         "auto_init": false,
         "has_issues": false,
@@ -181,7 +257,7 @@ pub fn resolve_target(project_path: &str, project_name: &str, prefix: &str) -> R
             brief(&body)
         ));
     }
-    Ok(Target { owner, repo, created: true })
+    Ok(Target { owner: owner.to_string(), repo: repo.to_string(), created: true })
 }
 
 /* ============================== 推送产物 ============================== */
@@ -387,10 +463,11 @@ pub fn publish(
     auto_pages: bool,
     prefix: &str,
     ident: (&str, &str),
+    repo_override: Option<&str>,
 ) -> Result<GhPublishOutcome, String> {
     let proj = project_path.unwrap_or("");
     let name = if project_name.trim().is_empty() { "项目" } else { project_name };
-    let target = resolve_target(proj, name, prefix)?;
+    let target = resolve_target(proj, name, prefix, repo_override)?;
 
     let staging = staging_dir();
     let push_result = push_branch(dist, &target.owner, &target.repo, branch, &staging, ident);
@@ -462,34 +539,74 @@ pub struct GhPreview {
 }
 
 #[tauri::command]
-pub fn gh_publish_preview(project_path: String, project_name: String) -> GhPreview {
+pub fn gh_publish_preview(
+    project_path: String,
+    project_name: String,
+    repo_name: Option<String>,
+) -> GhPreview {
     let prefs = crate::git::hosting_prefs();
     let branch = prefs.branch.clone();
+    let remote = git::origin_url(&project_path)
+        .ok()
+        .and_then(|r| parse_github_remote(&r));
 
-    if let Ok(remote) = git::origin_url(&project_path) {
-        if let Some((owner, repo)) = parse_github_remote(&remote) {
-            let url = pages_url(&owner, &repo);
-            return GhPreview {
-                source: "existing".into(),
-                hint: format!("复用项目已有的 GitHub 仓库，产物推到 {branch} 分支（不动 main）"),
-                owner,
-                repo,
-                url,
-                branch,
-                hosting: prefs.hosting,
-                auto_pages: prefs.auto_pages,
-                will_create: String::new(),
-            };
-        }
+    // 用户在弹窗里改了仓库名 → 以它为准。owner 沿用项目远端仓库的（改的是「这个仓库的名字」），
+    // 没有远端才退回本地记着的账号。
+    let explicit = repo_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(normalize_repo_name)
+        .unwrap_or_default();
+    if !explicit.is_empty() {
+        let owner = match remote.as_ref() {
+            Some((o, _)) => o.clone(),
+            None => git::gh_account().unwrap_or_default(),
+        };
+        let (url, hint) = if owner.is_empty() {
+            (
+                String::new(),
+                "还没有绑定 GitHub 账号 —— 先到「项目仓库」页绑定，再回来发布".to_string(),
+            )
+        } else {
+            (
+                pages_url(&owner, &explicit),
+                format!(
+                    "发布会推送到 {owner}/{explicit}；仓库不存在时会新建一个 public 仓库\
+                     （免费账号的 Pages 只支持 public）"
+                ),
+            )
+        };
+        return GhPreview {
+            source: "custom".into(),
+            owner,
+            repo: explicit,
+            url,
+            branch,
+            hint,
+            hosting: prefs.hosting,
+            auto_pages: prefs.auto_pages,
+            will_create: String::new(),
+        };
+    }
+
+    if let Some((owner, repo)) = remote {
+        let url = pages_url(&owner, &repo);
+        return GhPreview {
+            source: "existing".into(),
+            hint: format!("复用项目已有的 GitHub 仓库，产物推到 {branch} 分支（不动 main）"),
+            owner,
+            repo,
+            url,
+            branch,
+            hosting: prefs.hosting,
+            auto_pages: prefs.auto_pages,
+            will_create: String::new(),
+        };
     }
 
     let owner = git::gh_account().unwrap_or_default();
-    let slug = slugify(&project_name);
-    let repo = if slug.is_empty() {
-        format!("{}site", prefs.prefix)
-    } else {
-        format!("{}{}", prefs.prefix, slug)
-    };
+    let repo = default_repo_name(&project_name, &prefs.prefix);
     let url = if owner.is_empty() {
         String::new()
     } else {
@@ -567,6 +684,43 @@ mod tests {
         assert_eq!(slugify("a//b"), "a-b");
         assert_eq!(slugify(""), "");
         assert!(slugify(&"x".repeat(300)).chars().count() <= 80);
+    }
+
+    /// ⚠️ 这组断言正是「发布弹窗必须提供目标仓库输入框」的理由：
+    /// 默认命名会丢中文，不同项目名会落到同一个仓库 → 后发布者覆盖先发布者的站点。
+    #[test]
+    fn default_repo_name_shows_the_collision_risk() {
+        assert_eq!(default_repo_name("CRM组件文档", "pb-"), "pb-crm");
+        assert_eq!(default_repo_name("CRM客户管理", "pb-"), "pb-crm"); // 撞！
+        assert_eq!(default_repo_name("CRM移动端", "pb-"), "pb-crm");   // 撞！
+        assert_eq!(default_repo_name("订单系统", "pb-"), "pb-site");   // 全中文 → 兜底
+        assert_eq!(default_repo_name("端口管家", "pb-"), "pb-site");   // 撞！
+        assert_eq!(default_repo_name("订单系统 2", "pb-"), "pb-2");
+        assert_eq!(default_repo_name("Spell 文档站", "pb-"), "pb-spell");
+        // 前缀可以为空（设置里允许去掉）
+        assert_eq!(default_repo_name("My App", ""), "my-app");
+    }
+
+    #[test]
+    fn normalize_repo_name_keeps_only_github_legal_chars() {
+        assert_eq!(normalize_repo_name("  CRM Docs  "), "crm-docs");
+        assert_eq!(normalize_repo_name("My_App.v2"), "my_app.v2");
+        assert_eq!(normalize_repo_name("--a--b--"), "a--b");
+        assert_eq!(normalize_repo_name("a b/c"), "a-b-c");
+        // 全中文 → 空：调用方（resolve_target）必须据此报错，不能静默退回默认名
+        assert_eq!(normalize_repo_name("客户管理"), "");
+        assert_eq!(normalize_repo_name("   "), "");
+        assert!(normalize_repo_name(&"x".repeat(300)).chars().count() <= 100);
+    }
+
+    /// 改了仓库名 → 以显式名为准（但 owner 仍走远端；没有远端才查账号）。
+    /// 这里只验「非法名会报错」这条不走网络的路径。
+    #[test]
+    fn resolve_target_rejects_unusable_repo_name() {
+        let err = resolve_target("/nonexistent-path-for-test", "任意", "pb-", Some("客户管理"))
+            .unwrap_err();
+        assert!(err.contains("不合法"), "错误信息应说明不合法：{err}");
+        assert!(err.contains("客户管理"), "错误信息应带上原值：{err}");
     }
 
     #[test]

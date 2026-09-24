@@ -538,6 +538,20 @@
       <div class="field-hint" id="pubHostHint"></div>
     </div>
 
+    <!-- 目标仓库（仅 GitHub 托管时出现）。默认名由「项目名」生成，而生成规则会丢掉中文
+         ——「CRM组件文档」「CRM客户管理」都会变成 pb-crm，多个项目落同一个仓库、
+         发布时互相覆盖站点。所以这里必须能改。留空 = 用默认规则。 -->
+    <div class="field" id="pubGhTarget" hidden>
+      <label class="field-label">目标仓库</label>
+      <div class="input-row">
+        <input class="input" type="text" id="pubRepo" data-oninput="pub-repo"
+               placeholder="pb-xxx" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="field-hint">
+        默认按项目名生成（中文会被丢掉），同名仓库会互相覆盖站点 —— 多个项目请改成各自唯一的英文名。
+      </div>
+    </div>
+
     <div class="field">
       <label class="field-label">部署目录（静态构建产物，如 dist / build，仅含 HTML/CSS/JS/图片）</label>
       <div class="input-row">
@@ -550,6 +564,8 @@
         <button class="btn is-ghost" data-act="dist-probe">重新探测</button>
       </div>
       <div class="field-hint" id="pubHint"></div>
+      <!-- 发到子路径时的「根绝对路径」警告（由 scan_asset_paths 的结果驱动） -->
+      <div class="field-hint is-warn" id="pubPathWarn" hidden></div>
     </div>
 
     <div id="pubStatus" class="pub-status"></div>

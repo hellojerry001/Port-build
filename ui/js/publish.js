@@ -10,6 +10,11 @@ let pubDone = false;    // 发布成功后，弹窗底部按钮的语义从「�
 let pubHosting = "";    // 本次发布用的托管方式（空 = 还没读到偏好）
 let pubGh = null;       // gh_publish_preview 的结果：目标仓库、分支、预测地址
 
+let pubRepoDirty = false;  // 用户改过「目标仓库」输入框 → 不再用预览结果回填
+let pubScan = null;        // scan_asset_paths 的结果：产物里的根绝对引用数
+let pubScanSeq = 0, pubScanTimer = 0;
+let pubRepoSeq = 0;
+
 /* 托管方式的展示文案。key 与后端 git.rs 的 HOSTING_* 一一对应 */
 const PUB_HOSTINGS = [
   { key: "cloudflare", label: "Cloudflare 临时链接" },
@@ -27,10 +32,14 @@ function openPublish(id) {
   pubDone = false;
   pubHosting = "";
   pubGh = null;
+  pubRepoDirty = false;
+  pubScan = null;
   $("pubName").textContent = p.name;
   $("pubPath").value = "";
   $("distChips").innerHTML = "";
   $("pubStatus").innerHTML = "";
+  if ($("pubRepo")) $("pubRepo").value = "";
+  updatePathWarn();
   $("pubBtn").disabled = false;
   $("pubBtn").textContent = "发布";
   renderPubHost();
@@ -42,12 +51,17 @@ function openPublish(id) {
 /* 读托管偏好与目标仓库。两项都不阻塞弹窗打开 —— 先渲染默认态，回来了再刷新 */
 async function loadPubHosting(p) {
   try {
-    pubGh = await invoke("gh_publish_preview", { projectPath: p.path, projectName: p.name });
+    pubGh = await invoke("gh_publish_preview", {
+      projectPath: p.path, projectName: p.name, repoName: null,
+    });
     if (!pubHosting) pubHosting = pubGh.hosting || "cloudflare";
   } catch (_) {
     // 预览失败不影响发布：后端发布时会自己算一遍
     if (!pubHosting) pubHosting = "cloudflare";
   }
+  // 首次把后端算出的默认仓库名填进输入框；用户改过就不再动他的输入
+  const repoEl = $("pubRepo");
+  if (repoEl && !pubRepoDirty && pubGh) repoEl.value = pubGh.repo || "";
   renderPubHost();
 }
 
@@ -55,6 +69,10 @@ function renderPubHost() {
   const cur = pubHosting || "cloudflare";
   const box = $("pubHostChips");
   if (!box) return;
+
+  // 「目标仓库」只在 GitHub 托管下才有意义
+  const tgt = $("pubGhTarget");
+  if (tgt) tgt.hidden = cur !== "github";
 
   box.innerHTML = PUB_HOSTINGS.map(h =>
     '<button class="' + cls("chip", h.key === cur && "is-on") + '"' +
@@ -89,6 +107,26 @@ function renderPubHost() {
         "（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。";
     }
   }
+  updatePathWarn();   // 目标地址会随托管方式/仓库名变，警告跟着重算
+}
+
+/* 用户改了「目标仓库」→ 重新取一次预览（地址、是否新建都会变）。
+   预览不打网络（账号名取本地记录），所以可以边输边刷。 */
+async function refreshGhPreview() {
+  const p = projects.find(x => x.id === pubId);
+  if (!p) return;
+  const seq = ++pubRepoSeq;
+  const typed = $("pubRepo") ? $("pubRepo").value.trim() : "";
+  try {
+    const r = await invoke("gh_publish_preview", {
+      projectPath: p.path, projectName: p.name, repoName: typed || null,
+    });
+    if (seq !== pubRepoSeq) return;   // 期间又改了，丢弃这次
+    pubGh = r;
+  } catch (_) {
+    if (seq !== pubRepoSeq) return;
+  }
+  renderPubHost();
 }
 
 function closePublish() { closeModal("pubModal"); }
@@ -137,6 +175,7 @@ async function refreshPubHint() {
 
   if (!v) {
     setPathHint(pubProbe ? pubProbe.hint : "");
+    scheduleScan("");
     return;
   }
 
@@ -147,11 +186,50 @@ async function refreshPubHint() {
 
   if (ok) {
     setPathHint("✓ 目录存在，可以发布", "good");
+    scheduleScan(v);              // 顺带扫一遍产物里的资源路径
   } else {
     let msg = "✗ 这个目录不存在 —— 需要先构建出静态产物再发布。";
     if (pubProbe && pubProbe.buildCmd) msg += " 构建命令：" + pubProbe.buildCmd.split("→")[0].trim();
     setPathHint(msg, "bad");
+    scheduleScan("");
   }
+}
+
+/* ============================== 产物路径自检（发布前） ==============================
+   发布到 GitHub Pages **项目页**时，站点挂在 `/<repo>/` 子路径下，而多数构建工具
+   默认按**站点根**产出（`/_next/...`、`/assets/...`）。这些根绝对路径会打到域名根
+   → 样式全丢、点任何链接 404。这里在发布前扫一遍，把问题提前暴露出来。 */
+function scheduleScan(v) {
+  clearTimeout(pubScanTimer);
+  pubScan = null;
+  updatePathWarn();
+  if (!v) return;
+  pubScanTimer = setTimeout(async () => {
+    const seq = ++pubScanSeq;
+    let r = null;
+    try { r = await invoke("scan_asset_paths", { distPath: v }); } catch (_) { r = null; }
+    if (seq !== pubScanSeq) return;   // 又换了目录，丢弃这次
+    pubScan = r;
+    updatePathWarn();
+  }, 400);
+}
+
+/* 只有「确实会发到子路径」且「产物里真有根绝对引用」才提示 —— 发到站点根是没问题的。 */
+function updatePathWarn() {
+  const el = $("pubPathWarn");
+  if (!el) return;
+  const hosting = pubHosting || "cloudflare";
+  let subPath = true;                       // 地址未知时按「多半是项目页」保守处理
+  if (pubGh && pubGh.url) {
+    try { subPath = new URL(pubGh.url).pathname !== "/"; } catch (_) { subPath = true; }
+  }
+  const bad = hosting === "github" && subPath && !!pubScan && pubScan.hits > 0;
+  el.hidden = !bad;
+  if (!bad) return;
+  const sample = (pubScan.samples || []).slice(0, 3).join("、");
+  el.textContent = "⚠️ 产物里有 " + pubScan.hits + " 处根绝对路径（如 " + sample +
+    "）—— 发到子路径会丢样式、点链接会 404。请按站点根重新构建" +
+    "（Next 配 basePath、Vite 配 base），或改发到用户站点根。";
 }
 
 async function doPublish() {
@@ -176,6 +254,8 @@ async function doPublish() {
       projectPath: proj ? proj.path : "",
       hosting,                                  // 本次选的方式（空则后端读设置）
       branch: pubGh ? pubGh.branch : "",
+      // 目标仓库：留空则后端按默认规则命名（项目远端 > <前缀><项目名>）
+      repoName: ($("pubRepo") ? $("pubRepo").value.trim() : "") || null,
     });
 
     if (r.ok && r.url) {
@@ -442,3 +522,12 @@ on("copy-input", el => copyInputValue(el.dataset.target));
 on("open-url",   el => openLink(el.dataset.url));
 
 onInput("pub-path", () => refreshPubHint());
+
+/* 目标仓库：用户一改就标记 dirty（不再被预览回填），防抖后重取预览 ——
+   仓库名变了，目标地址与「是否新建」都会跟着变。 */
+let repoDebounce = 0;
+onInput("pub-repo", () => {
+  pubRepoDirty = true;
+  clearTimeout(repoDebounce);
+  repoDebounce = setTimeout(refreshGhPreview, 500);
+});

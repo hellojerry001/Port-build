@@ -228,6 +228,110 @@ fn scan_size(dir: &Path, depth: usize) -> (usize, u64) {
     (files, bytes)
 }
 
+/* ============================== 产物路径自检 ==============================
+   发布到 GitHub Pages **项目页**时，站点挂在 `/<repo>/` 子路径下，而多数构建工具
+   默认按**站点根**产出（`/_next/...`、`/assets/...`、`/docs/...`）。这些「根绝对路径」
+   会打到域名根 → 样式全丢、点任何链接 404。
+   这里在发布前扫一遍产物，把问题提前暴露，而不是等用户点开线上页面才发现。 */
+
+#[derive(Serialize, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetPathScan {
+    /// 扫过的 html/css 文件数
+    pub scanned: usize,
+    /// 根绝对引用的出现次数（不是去重后的种类数）
+    pub hits: usize,
+    /// 去重后的示例，方便用户定位（最多 4 条）
+    pub samples: Vec<String>,
+    /// 文件数超上限、提前停止
+    pub truncated: bool,
+}
+
+/// 从一段文本里挑出根绝对路径（`="/xxx"`、`url(/xxx)`）。
+/// 排除协议相对的 `//host`；返回命中次数，示例去重后塞进 out。
+fn collect_root_abs(text: &str, out: &mut Vec<String>, cap: usize) -> usize {
+    let mut hits = 0usize;
+    for pat in ["=\"/", "url(/"] {
+        let mut from = 0usize;
+        while let Some(pos) = text[from..].find(pat) {
+            let start = from + pos + pat.len() - 1;      // 指向那个 '/'
+            let rest = &text[start..];
+            if !rest.starts_with("//") {
+                let end = rest
+                    .find(|c| c == '"' || c == '\'' || c == ')' || c == ' ' || c == '>')
+                    .unwrap_or(rest.len());
+                if end >= 1 {
+                    hits += 1;
+                    let r = &rest[..end];
+                    if out.len() < cap && !out.iter().any(|x| x == r) {
+                        out.push(r.to_string());
+                    }
+                }
+            }
+            from = start + 1;
+        }
+    }
+    hits
+}
+
+/// 递归扫产物目录。只看 html/css（静态引用都在这里），并限制文件数与单文件体积。
+fn scan_dir_paths(dir: &Path, depth: usize, acc: &mut AssetPathScan) {
+    const MAX_FILES: usize = 4000;
+    const MAX_BYTES: u64 = 4 * 1024 * 1024;
+    if depth > 8 {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for e in entries.flatten() {
+        if acc.scanned >= MAX_FILES {
+            acc.truncated = true;
+            return;
+        }
+        let p = e.path();
+        // DirEntry::metadata 不跟随软链 —— 顺带避免符号链接造成的目录环
+        let md = match e.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if md.is_dir() {
+            scan_dir_paths(&p, depth + 1, acc);
+            continue;
+        }
+        if !md.is_file() || md.len() > MAX_BYTES {
+            continue;
+        }
+        let ext = p
+            .extension()
+            .and_then(|x| x.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if ext != "html" && ext != "htm" && ext != "css" {
+            continue;
+        }
+        let txt = match std::fs::read_to_string(&p) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        acc.scanned += 1;
+        acc.hits += collect_root_abs(&txt, &mut acc.samples, 4);
+    }
+}
+
+/// 给前端做发布前自检：这个产物目录里有多少「根绝对引用」。
+#[tauri::command]
+pub fn scan_asset_paths(dist_path: String) -> AssetPathScan {
+    let mut acc = AssetPathScan::default();
+    let p = Path::new(&dist_path);
+    if p.is_dir() {
+        scan_dir_paths(p, 0, &mut acc);
+    }
+    acc.samples.sort();
+    acc
+}
+
 /// 探测某个项目下可发布的产物目录，并给出针对性建议
 #[tauri::command]
 pub fn publish_probe(project_path: String) -> PublishProbe {
@@ -407,6 +511,10 @@ fn run_wrangler(dist: &str, name: &str, home: &Path, npm_cache: &Path, run_dir: 
 ///
 /// `hosting` 为空则读设置里的偏好；非空表示「本次临时改用另一种」，
 /// 由发布弹窗传入 —— 不想为了试一次就跑去设置页改。
+///
+/// `repo_name`：弹窗里手动填的目标仓库名（仅 GitHub 托管用）。留空 = 按默认规则命名
+/// （项目已有远端 → 用它；否则 `<前缀><项目名>`）。填了就以它为准 —— 默认命名会丢中文，
+/// 多个中文项目名会落到同一个仓库、互相覆盖站点。
 #[tauri::command]
 pub fn publish_project(
     dist_path: String,
@@ -415,6 +523,7 @@ pub fn publish_project(
     project_path: Option<String>,
     hosting: Option<String>,
     branch: Option<String>,
+    repo_name: Option<String>,
 ) -> PublishResult {
     let prefs = git::hosting_prefs();
     let mode = hosting
@@ -435,6 +544,7 @@ pub fn publish_project(
             &branch,
             prefs.auto_pages,
             &prefs.prefix,
+            repo_name,
         );
     }
     publish_via_cloudflare(dist_path, project_id, project_name)
@@ -450,6 +560,7 @@ fn publish_via_github(
     branch: &str,
     auto_pages: bool,
     prefix: &str,
+    repo_name: Option<String>,
 ) -> PublishResult {
     let fail = |msg: String| PublishResult {
         ok: false,
@@ -479,6 +590,7 @@ fn publish_via_github(
         auto_pages,
         prefix,
         (&ident.0, &ident.1),
+        repo_name.as_deref(),
     ) {
         Ok(o) => o,
         Err(e) => return fail(e),
@@ -718,5 +830,53 @@ mod tests {
     fn dirs_npm() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_default();
         PathBuf::from(home).join(".npm")
+    }
+
+    #[test]
+    fn root_abs_scan_catches_static_refs_and_skips_external() {
+        let mut out = Vec::new();
+        let html = "<link href=\"/_next/a.css\">\
+                    <script src=\"/assets/app.js\"></script>\
+                    <a href=\"/\">首页</a>\
+                    <a href=\"//cdn.example.com/x.js\">cdn</a>\
+                    <a href=\"https://example.com/y\">abs</a>\
+                    <img src=\"img/rel.png\">";
+        // 命中：/_next/a.css、/assets/app.js、/ 共 3 条；
+        // 不命中：//cdn（协议相对）、https://（外链）、img/rel.png（相对）
+        assert_eq!(collect_root_abs(html, &mut out, 8), 3);
+        assert!(out.contains(&"/_next/a.css".to_string()));
+        assert!(out.contains(&"/assets/app.js".to_string()));
+        assert!(!out.iter().any(|s| s.starts_with("//")));
+        assert!(!out.iter().any(|s| s.contains("http")));
+
+        let mut css = Vec::new();
+        let text = ".a{background:url(/img/bg.png)} \
+                    .b{background:url(//cdn/x.png)} \
+                    .c{background:url(rel/y.png)}";
+        assert_eq!(collect_root_abs(text, &mut css, 8), 1);
+        assert_eq!(css, vec!["/img/bg.png".to_string()]);
+    }
+
+    #[test]
+    fn scan_asset_paths_walks_html_and_css_only() {
+        let dir = std::env::temp_dir().join(format!("pb-scan-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("deep")).unwrap();
+        std::fs::write(dir.join("index.html"), "<link href=\"/_next/a.css\">").unwrap();
+        std::fs::write(dir.join("deep/app.css"), ".a{background:url(/i/b.png)}").unwrap();
+        // js 里带根路径的字符串极多、误报率高 → 刻意不扫
+        std::fs::write(dir.join("app.js"), "const u = \"/api/x\";").unwrap();
+
+        let s = scan_asset_paths(dir.to_string_lossy().to_string());
+        assert_eq!(s.scanned, 2, "只该扫 html + css，实际 {s:?}");
+        assert_eq!(s.hits, 2, "index.html 1 条 + app.css 1 条，实际 {s:?}");
+        assert!(!s.truncated);
+
+        // 目录不存在 → 空结果，不 panic
+        let empty = scan_asset_paths("/definitely/not/here".to_string());
+        assert_eq!(empty.scanned, 0);
+        assert_eq!(empty.hits, 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

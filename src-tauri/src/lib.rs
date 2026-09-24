@@ -73,6 +73,7 @@ pub fn run() {
             publish::publish_project,
             publish::publish_probe,
             publish::check_dir,
+            publish::scan_asset_paths,
             ghpages::gh_publish_preview,
             publishes::list_publishes,
             publishes::delete_publish,
