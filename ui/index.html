@@ -11,8 +11,9 @@
 <script src="js/theme.js"></script>
 </head>
 <body>
-<!-- 顶部透明拖拽条：绝对定位覆盖在内容上方，仅用于拖动窗口，不占位 -->
-<div class="titlebar" data-tauri-drag-region></div>
+<!-- 顶部透明拖拽条：绝对定位覆盖在内容上方，仅用于拖动窗口，不占位。
+     拖拽由 main.js 监听 mousedown → startDragging() 实现（WKWebView 不支持 app-region）。 -->
+<div class="titlebar"></div>
 
 <!-- 左侧导航（由 rail.js 的 renderRail() 渲染） -->
 <nav class="rail" id="rail"></nav>

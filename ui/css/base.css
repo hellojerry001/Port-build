@@ -30,7 +30,9 @@ body {
 }
 
 /* Overlay 透明标题栏的拖拽条：绝对定位覆盖在内容上方，透明、不占位，
-   仅用于拖动窗口；rail / 主内容各自顶到窗口最上沿，颜色自然透出。 */
+   仅用于拖动窗口；rail / 主内容各自顶到窗口最上沿，颜色自然透出。
+   ⚠️ 拖拽是 JS 驱动的（main.js 监听 mousedown → startDragging()）：
+   macOS 的 WKWebView 不支持 `-webkit-app-region`，那两条 CSS 是死代码，已删。 */
 .titlebar {
   position: absolute;
   top: 0;
@@ -39,13 +41,6 @@ body {
   height: var(--titlebar-h);
   z-index: var(--z-titlebar, 20);
   background: transparent;
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.titlebar * {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 /* 全屏（macOS 原生全屏）没有红绿灯，收掉为其预留的顶部高度，只留一点呼吸间距；
