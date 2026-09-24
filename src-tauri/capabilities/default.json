@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "默认能力：核心权限 + 显式允许窗口拖拽（startDragging）。自定义命令不需要权限，但 core 插件命令（如窗口拖动）必须在此授权。",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}

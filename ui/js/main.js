@@ -26,6 +26,53 @@ function syncFullscreen() {
 }
 window.addEventListener("resize", syncFullscreen);
 
+/* 标题栏拖拽：macOS WKWebView 不支持 CSS 的 `-webkit-app-region: drag`，
+   所以这里手动监听 mousedown 调原生 startDragging()。全屏时 .titlebar 高度
+   归零，不会收到事件，因此无需额外判断。global Tauri 已开（withGlobalTauri），
+   但老构建可能没有 window.__TAURI__.window，做个存在性兜底避免抛错。
+   v2 API 是 getCurrentWindow()；v1/兼容别名可能是 getCurrent()，都尝试。 */
+function startNativeDrag() {
+  const w = window.__TAURI__ && window.__TAURI__.window;
+  if (!w) { console.warn("[drag] window.__TAURI__.window 不存在"); return; }
+  const getCurrent = w.getCurrentWindow || w.getCurrent;
+  if (typeof getCurrent !== "function") {
+    console.warn("[drag] 没有 getCurrentWindow/getCurrent", w);
+    return;
+  }
+  // ⚠️ startDragging() 返回 Promise：权限不足时是**被拒绝的 Promise**，
+  // 同步 try/catch 抓不到 → 必须 .catch，否则静默失败（踩过）。
+  try {
+    const p = getCurrent().startDragging();
+    if (p && typeof p.catch === "function") {
+      p.catch(err => {
+        console.error("[drag] startDragging 被拒", err);
+        if (typeof toast === "function") toast("拖拽失败：" + err);
+      });
+    }
+  } catch (err) {
+    console.error("[drag] 同步异常", err);
+    if (typeof toast === "function") toast("拖拽失败：" + err);
+  }
+}
+
+function bindDragRegion() {
+  const bar = document.querySelector(".titlebar");
+  if (bar) {
+    bar.addEventListener("mousedown", e => { if (e.button === 0) startNativeDrag(); });
+  }
+  // 左侧 rail 的顶部 padding 区域（红绿灯下方、图标上方）也做成可拖，
+  // 否则 28px 的顶条太窄，用户容易在 rail 空白区按住却拖不动。
+  const rail = document.getElementById("rail");
+  if (rail) {
+    const railPadTop = parseFloat(getComputedStyle(rail).paddingTop) || 40;
+    rail.addEventListener("mousedown", e => {
+      if (e.button !== 0) return;
+      const rect = rail.getBoundingClientRect();
+      if (e.clientY - rect.top < railPadTop) startNativeDrag();
+    });
+  }
+}
+
 /* 删除确认是唯一的模态操作，Esc 关闭时保持与点击「取消」一致 */
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
@@ -40,6 +87,7 @@ document.addEventListener("keydown", e => {
 /* ------------------------------ 启动 ------------------------------ */
 function boot() {
   bindDelegates();
+  bindDragRegion();
   renderRail();
   goPage("projects");
   refreshAll();

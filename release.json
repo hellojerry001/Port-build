@@ -1,15 +1,13 @@
 {
-  "version": "0.5.1",
-  "date": "2026-09-23",
+  "version": "0.5.2",
+  "date": "2026-09-24",
   "notes": [
-    "新增「安装并重启」：下载完成后一键就地替换并自动重开，不再出现 Gatekeeper 提示",
-    "顶部改为透明标题栏，红绿灯浮在左上角，界面更沉浸；进入原生全屏时自动收紧顶部间距",
-    "修复从浏览器下载后双击提示「已损坏，无法打开」的问题（应用已带 ad-hoc 签名）",
-    "本次升级仍需手动拖入 DMG 安装一次（旧版本尚未内置一键安装），此后版本即可一键升级"
+    "修复标题栏 / 左侧导航顶部区域无法拖动窗口的问题（根因：Tauri 2 的 core 窗口命令需 capability 授权，已补齐）",
+    "现在可从窗口最顶部横条，或左侧导航顶部空白区按住拖动窗口"
   ],
-  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.1_aarch64.dmg",
-  "dmg_name": "VibeButler_0.5.1_aarch64.dmg",
-  "dmg_size": 5725045,
+  "dmg": "https://raw.githubusercontent.com/hellojerry001/Port-build/main/dist/VibeButler_0.5.2_aarch64.dmg",
+  "dmg_name": "VibeButler_0.5.2_aarch64.dmg",
+  "dmg_size": 5743308,
   "min_macos": "12.0",
   "mandatory": false
 }
