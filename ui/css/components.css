@@ -945,8 +945,290 @@
 .chip-bar .chip-row { flex: 1; min-width: 0; margin-top: 0; }
 .chip-bar > .btn { flex: none; }
 
-/* ============================== 发布模块 ============================== */
-.pub-status { margin: var(--px-4) 0 var(--px-2); font-size: var(--fs-12); }
+/* ============================== 发布模块（参考新版卡片式弹窗） ============================== */
+.modal.is-publish .build-log { height: auto; max-height: 150px; }
+
+/* 头部：标题 + 副标题 */
+.pub-head { margin-bottom: var(--px-14); }
+.modal.is-publish .modal-title { margin-bottom: var(--px-3); }
+.pub-sub {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  line-height: var(--lh-155);
+}
+
+/* 分节：标题 + 内容块，节间距比原来更克制 */
+.pub-sec { margin-bottom: var(--px-14); }
+.pub-sec:last-of-type { margin-bottom: 0; }
+.pub-sec-title {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+  margin-bottom: var(--px-6);
+}
+
+/* 托管方式：内嵌分段选择器 */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-2);
+  padding: var(--px-2);
+  border-radius: var(--r-10);
+  background: var(--c-fill-field);
+}
+
+.seg-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-2);
+  font-size: var(--fs-12);
+  padding: var(--px-5) var(--px-10);
+  border-radius: var(--px-7);
+  transition: background var(--px-1-5) var(--ease), color var(--px-1-5) var(--ease);
+}
+
+.seg-btn:hover { color: var(--c-text); }
+.seg-btn.is-on {
+  background: var(--c-surface-5);
+  color: var(--c-text);
+  font-weight: var(--fw-semi);
+}
+
+/* 发布目标：双列卡片 */
+.target-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--px-8);
+}
+
+.target-card {
+  position: relative;
+  text-align: left;
+  min-height: 86px;
+  padding: var(--px-14) var(--px-13) var(--px-14) var(--px-34);
+  border: none;
+  border-radius: var(--r-12);
+  background: var(--c-fill-field);
+  color: var(--c-text-2);
+  transition: background var(--px-1-5) var(--ease), color var(--px-1-5) var(--ease);
+}
+
+.target-card:hover { background: var(--c-surface-2); color: var(--c-text); }
+.target-card.is-on {
+  background: var(--c-surface-3);
+  color: var(--c-text);
+}
+
+.target-dot {
+  position: absolute;
+  left: var(--px-14);
+  top: var(--px-15);
+  width: var(--px-14);
+  height: var(--px-14);
+  border-radius: var(--r-pill);
+  border: var(--hairline) solid var(--c-text-3);
+  transition: border-color var(--px-1-5) var(--ease);
+}
+
+.target-card.is-on .target-dot {
+  border-color: var(--c-text-2);
+  background: radial-gradient(circle, var(--c-text-2) 0 45%, transparent 50%);
+}
+
+.target-body { display: flex; flex-direction: column; gap: var(--px-3); }
+.target-title { font-size: var(--fs-14); font-weight: var(--fw-semi); }
+.target-note { font-size: var(--fs-11); color: var(--c-text-3); line-height: var(--lh-155); }
+
+/* 仓库名输入与 helper */
+#pubRepoRow { margin-top: var(--px-8); }
+.repo-input { margin-bottom: var(--px-5); }
+.repo-input .input {
+  border: none;
+  background: var(--c-fill-field);
+}
+.helper {
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+  line-height: var(--lh-155);
+}
+.helper.is-warn {
+  margin-top: var(--px-8);
+  color: var(--c-warn-strong);
+}
+
+/* 部署目录卡片 */
+.directory-card {
+  border: none;
+  border-radius: var(--r-12);
+  background: var(--c-fill-field);
+  padding: var(--px-12) var(--px-14);
+}
+
+.directory-top {
+  display: flex;
+  align-items: center;
+  gap: var(--px-8);
+  margin-bottom: var(--px-8);
+}
+
+.directory-top .path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+  color: var(--c-text);
+  padding: var(--px-8) var(--px-10);
+  border: none;
+  border-radius: var(--r-10);
+  background: var(--c-surface-1);
+}
+
+.directory-top .btn { flex: none; }
+
+.directory-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--px-8);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px-5);
+  padding: var(--px-4) var(--px-9);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-1);
+  border: none;
+  font-size: var(--fs-11);
+  color: var(--c-text-2);
+}
+
+.status-pill .dot {
+  width: var(--px-6);
+  height: var(--px-6);
+  border-radius: var(--r-pill);
+  background: var(--c-text-3);
+}
+
+.status-pill.is-ok .dot { background: var(--c-ok); }
+.status-pill.is-bad .dot { background: var(--c-danger); }
+.status-pill.is-bad { color: var(--c-danger); }
+
+/* 发布预览：虚线框 */
+.pub-preview {
+  margin-top: var(--px-14);
+  padding: var(--px-14);
+  border: var(--hairline) dashed var(--c-border-focus);
+  border-radius: var(--r-12);
+  background: var(--c-surface-2);
+}
+
+.pub-preview[hidden] { display: none; }
+.pub-preview.is-run { border-style: solid; }
+
+.preview-url {
+  font-size: var(--fs-12);
+  color: var(--c-text-2);
+  word-break: break-all;
+}
+.preview-url.is-bad { color: var(--c-danger); }
+
+.preview-check {
+  margin-top: var(--px-4);
+  font-size: var(--fs-11);
+  color: var(--c-text-3);
+}
+.preview-check.is-ok { color: var(--c-ok); }
+.preview-check.is-bad { color: var(--c-danger); }
+
+.preview-warn {
+  margin-top: var(--px-5);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  color: var(--c-warn-strong);
+}
+
+/* 发布中：进度条 + 逐条淡入步骤 */
+.pb-bar { margin-top: var(--px-10); }
+.pb-steps { margin-top: var(--px-10); }
+
+.pb-bar {
+  position: relative;
+  height: var(--px-3);
+  border-radius: var(--r-pill);
+  background: var(--c-fill-field);
+  overflow: hidden;
+}
+
+.pb-bar i,
+.pb-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: var(--r-pill);
+  background: var(--c-text-2);
+  animation: pb-slide 1.15s ease-in-out infinite;
+}
+.pb-bar::after { animation-delay: -.38s; opacity: .45; }
+
+@keyframes pb-slide {
+  from { left: -40%; }
+  to   { left: 100%; }
+}
+
+.pb-bar.is-done::after,
+.pb-bar.is-done i { animation: none; left: 0; width: 100%; background: var(--c-ok); }
+.pb-bar.is-fail::after,
+.pb-bar.is-fail i { animation: none; left: 0; width: 100%; background: var(--c-danger); }
+
+.pb-step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--px-7);
+  font-size: var(--fs-11);
+  line-height: var(--lh-155);
+  color: var(--c-text-3);
+  animation: pb-step-in .26s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * .14s);
+}
+.pb-step b {
+  flex: none;
+  min-width: var(--px-16);
+  font-weight: var(--fw-semi);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-2);
+}
+.pb-step.is-done,
+.pb-step.is-done b { color: var(--c-ok); }
+.pb-step.is-bad,
+.pb-step.is-bad b { color: var(--c-danger); }
+
+@keyframes pb-step-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-step { animation: none; }
+  .pb-bar i,
+  .pb-bar::after { animation: none; left: 0; width: 100%; opacity: .6; }
+}
+
+/* 底部提示 + footer */
+.pub-tip {
+  color: var(--c-text-3);
+  font-size: var(--fs-11);
+  margin-top: var(--px-10);
+  line-height: var(--lh-16);
+}
+
+.pub-status { margin-top: var(--px-10); font-size: var(--fs-12); }
 .pub-loading { color: var(--c-text-2); }
 .pub-ok { color: var(--c-ok-strong); margin-bottom: var(--px-6); }
 
@@ -956,18 +1238,32 @@
   word-break: break-word;
 }
 
-.pub-count {
-  color: var(--c-text-3);
-  margin-top: var(--px-10);
-  font-size: var(--fs-12);
+.modal.is-publish .modal-foot {
+  justify-content: space-between;
+  margin-top: var(--px-16);
 }
 
-.pub-tip {
+.modal-foot-ops { display: flex; align-items: center; gap: var(--px-8); }
+
+.link-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
   color: var(--c-text-3);
-  font-size: var(--fs-11);
-  margin-top: var(--px-8);
-  line-height: var(--lh-16);
+  font-size: var(--fs-12);
+  padding: var(--px-5) var(--px-2);
+  cursor: pointer;
+  transition: color var(--px-1-5) var(--ease);
 }
+.link-btn:hover { color: var(--c-text); }
+
+/* footer 里的「发布」用反色主按钮：深色底用白字，浅色底用黑字 */
+.modal.is-publish #pubBtn {
+  background: var(--c-text);
+  color: var(--c-modal);
+}
+.modal.is-publish #pubBtn:hover { opacity: .92; }
+.modal.is-publish #pubBtn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ============================== 发布记录列表 ============================== */
 .list-head {

@@ -189,7 +189,23 @@ pub fn resolve_target(
     project_name: &str,
     prefix: &str,
     repo_override: Option<&str>,
+    user_site: bool,
 ) -> Result<Target, String> {
+    let remote = git::origin_url(project_path)
+        .ok()
+        .and_then(|r| parse_github_remote(&r));
+
+    // 发到「用户站点根」：仓库名固定 `<owner>.github.io`，站点就落在**域名根** ——
+    // 产物里的根绝对路径（/_next/…、/assets/…）天然成立，任何静态站都不用配 basePath。
+    // ⚠️ 但一个账号的站点根只有一个，再发会**整个覆盖**根上现有的内容（且静默发生）。
+    if user_site {
+        let owner = match remote.as_ref() {
+            Some((o, _)) => o.clone(),
+            None => current_login()?,
+        };
+        return ensure_repo(&owner, &format!("{owner}.github.io"));
+    }
+
     let explicit = match repo_override.map(str::trim).filter(|s| !s.is_empty()) {
         Some(raw) => {
             let n = normalize_repo_name(raw);
@@ -203,10 +219,6 @@ pub fn resolve_target(
         }
         None => String::new(),
     };
-
-    let remote = git::origin_url(project_path)
-        .ok()
-        .and_then(|r| parse_github_remote(&r));
 
     // 没改名 + 项目已有 GitHub 远端 → 复用远端（与旧行为完全一致，且不额外调 API）
     if explicit.is_empty() {
@@ -464,10 +476,11 @@ pub fn publish(
     prefix: &str,
     ident: (&str, &str),
     repo_override: Option<&str>,
+    user_site: bool,
 ) -> Result<GhPublishOutcome, String> {
     let proj = project_path.unwrap_or("");
     let name = if project_name.trim().is_empty() { "项目" } else { project_name };
-    let target = resolve_target(proj, name, prefix, repo_override)?;
+    let target = resolve_target(proj, name, prefix, repo_override, user_site)?;
 
     let staging = staging_dir();
     let push_result = push_branch(dist, &target.owner, &target.repo, branch, &staging, ident);
@@ -543,12 +556,49 @@ pub fn gh_publish_preview(
     project_path: String,
     project_name: String,
     repo_name: Option<String>,
+    user_site: Option<bool>,
 ) -> GhPreview {
     let prefs = crate::git::hosting_prefs();
     let branch = prefs.branch.clone();
     let remote = git::origin_url(&project_path)
         .ok()
         .and_then(|r| parse_github_remote(&r));
+
+    // 发到「用户站点根」：仓库固定 `<owner>.github.io`，站点落在域名根。
+    // ⚠️ 根是共享的 —— 必须把「会覆盖」这件事写进提示里。
+    if user_site.unwrap_or(false) {
+        let owner = match remote.as_ref() {
+            Some((o, _)) => o.clone(),
+            None => git::gh_account().unwrap_or_default(),
+        };
+        let repo = format!("{owner}.github.io");
+        let (url, hint) = if owner.is_empty() {
+            (
+                String::new(),
+                "还没有绑定 GitHub 账号 —— 先到「项目仓库」页绑定，再回来发布".to_string(),
+            )
+        } else {
+            (
+                pages_url(&owner, &repo),
+                format!(
+                    "会发布到站点根 https://{owner}.github.io/（仓库 {repo}）。\
+                     \n⚠️ 一个账号的站点根只有这一个 —— 发布会把根上现有的内容**整个替换**，\
+                     之前发到根上的站点就没了。"
+                ),
+            )
+        };
+        return GhPreview {
+            source: "user-site".into(),
+            owner,
+            repo,
+            url,
+            branch,
+            hint,
+            hosting: prefs.hosting,
+            auto_pages: prefs.auto_pages,
+            will_create: String::new(),
+        };
+    }
 
     // 用户在弹窗里改了仓库名 → 以它为准。owner 沿用项目远端仓库的（改的是「这个仓库的名字」），
     // 没有远端才退回本地记着的账号。
@@ -572,8 +622,7 @@ pub fn gh_publish_preview(
             (
                 pages_url(&owner, &explicit),
                 format!(
-                    "发布会推送到 {owner}/{explicit}；仓库不存在时会新建一个 public 仓库\
-                     （免费账号的 Pages 只支持 public）"
+                    "发布会推送到 {owner}/{explicit}；仓库不存在时会新建一个 public 仓库"
                 ),
             )
         };
@@ -616,7 +665,7 @@ pub fn gh_publish_preview(
         "还没有绑定 GitHub 账号 —— 先到「项目仓库」页绑定，再回来发布".to_string()
     } else {
         format!(
-            "项目没有 GitHub 远端：发布时会新建 public 仓库 {owner}/{repo}（免费账号的 Pages 只支持 public）"
+            "项目没有 GitHub 远端：发布时会新建 public 仓库 {owner}/{repo}"
         )
     };
     GhPreview {
@@ -717,7 +766,7 @@ mod tests {
     /// 这里只验「非法名会报错」这条不走网络的路径。
     #[test]
     fn resolve_target_rejects_unusable_repo_name() {
-        let err = resolve_target("/nonexistent-path-for-test", "任意", "pb-", Some("客户管理"))
+        let err = resolve_target("/nonexistent-path-for-test", "任意", "pb-", Some("客户管理"), false)
             .unwrap_err();
         assert!(err.contains("不合法"), "错误信息应说明不合法：{err}");
         assert!(err.contains("客户管理"), "错误信息应带上原值：{err}");

@@ -515,6 +515,10 @@ fn run_wrangler(dist: &str, name: &str, home: &Path, npm_cache: &Path, run_dir: 
 /// `repo_name`：弹窗里手动填的目标仓库名（仅 GitHub 托管用）。留空 = 按默认规则命名
 /// （项目已有远端 → 用它；否则 `<前缀><项目名>`）。填了就以它为准 —— 默认命名会丢中文，
 /// 多个中文项目名会落到同一个仓库、互相覆盖站点。
+///
+/// `user_site`：true = 发到账号的**站点根**（仓库 `<owner>.github.io`，地址就是域名根）。
+/// 根绝对路径在那里天然成立 → 任何静态站都不用配 basePath；但一个账号只有这一个根，
+/// 再发会把根上的内容整个替换（前端必须先让用户确认）。
 #[tauri::command]
 pub fn publish_project(
     dist_path: String,
@@ -524,6 +528,7 @@ pub fn publish_project(
     hosting: Option<String>,
     branch: Option<String>,
     repo_name: Option<String>,
+    user_site: Option<bool>,
 ) -> PublishResult {
     let prefs = git::hosting_prefs();
     let mode = hosting
@@ -545,6 +550,7 @@ pub fn publish_project(
             prefs.auto_pages,
             &prefs.prefix,
             repo_name,
+            user_site.unwrap_or(false),
         );
     }
     publish_via_cloudflare(dist_path, project_id, project_name)
@@ -561,6 +567,7 @@ fn publish_via_github(
     auto_pages: bool,
     prefix: &str,
     repo_name: Option<String>,
+    user_site: bool,
 ) -> PublishResult {
     let fail = |msg: String| PublishResult {
         ok: false,
@@ -591,6 +598,7 @@ fn publish_via_github(
         prefix,
         (&ident.0, &ident.1),
         repo_name.as_deref(),
+        user_site,
     ) {
         Ok(o) => o,
         Err(e) => return fail(e),

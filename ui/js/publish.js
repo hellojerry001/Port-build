@@ -11,17 +11,51 @@ let pubHosting = "";    // 本次发布用的托管方式（空 = 还没读到�
 let pubGh = null;       // gh_publish_preview 的结果：目标仓库、分支、预测地址
 
 let pubRepoDirty = false;  // 用户改过「目标仓库」输入框 → 不再用预览结果回填
+let pubUserSite = false;   // GitHub 托管下的发布目标：false=项目仓库（子路径） true=站点根（域名根）
+let pubRootArmed = false, pubRootTimer = 0;   // 站点根的「再点一次」二次确认
 let pubScan = null;        // scan_asset_paths 的结果：产物里的根绝对引用数
+
+// 状态汇总（#pubSum）里要显示的三类信息，全部集中一处
+let pubRunning = false;                 // 发布中：汇总块切成「进度条 + 逐条动画的步骤」
+let pubStepEls = [];                    // 发布中的步骤行，收尾时统一改勾
+let pubDest = "", pubDestBad = false;   // 目的地一行（将发布到哪儿）
+let pubDirMsg = "", pubDirBad = false;  // 部署目录的状态（✗ 不存在等；正常时给一句短的）
+let pubWarnText = "";                   // 产物路径警告（发到子路径会丢样式）
 let pubScanSeq = 0, pubScanTimer = 0;
 let pubRepoSeq = 0;
 
 /* 托管方式的展示文案。key 与后端 git.rs 的 HOSTING_* 一一对应 */
 const PUB_HOSTINGS = [
-  { key: "cloudflare", label: "Cloudflare 临时链接" },
-  { key: "github",     label: "GitHub Pages" },
+  { key: "cloudflare", label: "Cloudflare 临时链接", note: "匿名临时链接，默认 60 分钟自动失效" },
+  { key: "github",     label: "GitHub Pages",         note: "推送到仓库产物分支，长期由 GitHub Pages 提供访问" },
+];
+
+/* GitHub 托管下的「发布目标」。
+   project = 项目仓库，站点在 `<owner>.github.io/<repo>/` 子路径下（默认、也最常用）；
+   root    = 账号的站点根，站点就在域名根，产物里的根绝对路径天然成立 ——
+             任何静态站都不用配 basePath，但一个账号只有这一个根，再发会静默覆盖。 */
+const PUB_TARGETS = [
+  { key: "project", label: "项目仓库 · 子路径", note: "站点落在 <owner>.github.io/<仓库>/ 下" },
+  { key: "root",    label: "我的站点根 · 域名根", note: "站点就在域名根，产物不用配 basePath" },
 ];
 
 /* ============================== 发布弹窗 ============================== */
+
+/* 弹窗两个状态：配置（选托管/目标/目录）与发布中（转圈 + 步骤日志）。
+   与「打包 DMG」的 bdCfg / bdRun 同一套交互。 */
+function showPubCfg() {
+  pubRunning = false;                 // 回到配置态：汇总块从「进度」复位成「目的地 / 状态」
+  pubStepEls = [];
+  if ($("pubCfg")) $("pubCfg").hidden = false;
+  if ($("pubRun")) $("pubRun").hidden = true;
+  const sum = $("pubSum");
+  if (sum) sum.classList.remove("is-run");
+  renderPubSum();
+}
+function showPubRun() {
+  if ($("pubCfg")) $("pubCfg").hidden = true;
+  if ($("pubRun")) $("pubRun").hidden = false;
+}
 
 function openPublish(id) {
   const p = projects.find(x => x.id === id);
@@ -33,10 +67,24 @@ function openPublish(id) {
   pubHosting = "";
   pubGh = null;
   pubRepoDirty = false;
+  pubUserSite = false;
+  pubRootArmed = false;
+  clearTimeout(pubRootTimer);
   pubScan = null;
+  showPubCfg();
+  if ($("pubRunStatus")) $("pubRunStatus").textContent = "";
+  pubRunning = false;
+  pubStepEls = [];
   $("pubName").textContent = p.name;
   $("pubPath").value = "";
-  $("distChips").innerHTML = "";
+  if ($("pubPathBox")) {
+    $("pubPathBox").textContent = "尚未选择构建产物目录";
+    $("pubPathBox").title = "";
+  }
+  if ($("pubDirPill")) {
+    $("pubDirPill").className = "status-pill";
+    $("pubDirPill").innerHTML = '<span class="dot"></span>正在探测…';
+  }
   $("pubStatus").innerHTML = "";
   if ($("pubRepo")) $("pubRepo").value = "";
   updatePathWarn();
@@ -52,7 +100,7 @@ function openPublish(id) {
 async function loadPubHosting(p) {
   try {
     pubGh = await invoke("gh_publish_preview", {
-      projectPath: p.path, projectName: p.name, repoName: null,
+      projectPath: p.path, projectName: p.name, repoName: null, userSite: pubUserSite,
     });
     if (!pubHosting) pubHosting = pubGh.hosting || "cloudflare";
   } catch (_) {
@@ -67,48 +115,146 @@ async function loadPubHosting(p) {
 
 function renderPubHost() {
   const cur = pubHosting || "cloudflare";
-  const box = $("pubHostChips");
+  const box = $("pubHostSeg");
   if (!box) return;
 
   // 「目标仓库」只在 GitHub 托管下才有意义
   const tgt = $("pubGhTarget");
   if (tgt) tgt.hidden = cur !== "github";
+  renderPubTarget();
 
   box.innerHTML = PUB_HOSTINGS.map(h =>
-    '<button class="' + cls("chip", h.key === cur && "is-on") + '"' +
+    '<button class="' + cls("seg-btn", h.key === cur && "is-on") + '" role="radio"' +
+    ' aria-checked="' + (h.key === cur ? "true" : "false") + '"' +
     dataAttrs({ act: "pub-host-pick", key: h.key }) + ">" + esc(h.label) + "</button>").join("");
 
-  const hint = $("pubHostHint");
   const tip = $("pubFootTip");
-  const title = $("pubTitle");
   if (cur === "github") {
-    hint.className = cls("field-hint", pubGh && !pubGh.url && "is-bad");
-    // 地址另起一行：和说明文字挤在同一行换行时，中间会空出一大段
-    hint.innerHTML = pubGh
-      ? esc(pubGh.hint) + (pubGh.url ? "<br>目标地址：" + esc(pubGh.url) : "")
-      : "长期托管：产物会推到仓库的产物分支，由 GitHub Pages 提供访问";
-    if (title) title.textContent = "发布到线上 · GitHub Pages";
+    // 目的地一行进「状态汇总」；长说明只在底部留一行
+    pubDest = (pubGh && pubGh.url) ? "将发布到 " + pubGh.url : "";
+    pubDestBad = !!pubGh && !pubGh.url;
+    if (!pubDest) pubDest = pubGh ? pubGh.hint : "长期托管：产物会推到仓库的产物分支，由 GitHub Pages 提供访问";
     if (tip) {
-      tip.innerHTML = "发布到 GitHub Pages：<b>长期有效</b>，不需要认领。" +
-        "免费账号仅支持 public 仓库（没有远端时会新建一个）；" +
-        "首次开启 Pages 后约需 1 分钟构建，期间访问可能 404。" +
-        "<br>产物会被强制提交（忽略 .gitignore），并自动补一个 <code>.nojekyll</code>，" +
-        "否则下划线开头的资源目录（如 Next 的 <code>_next</code>）会被 Jekyll 吃掉。";
+      tip.innerHTML = "免费账号仅支持 <b>public</b> 仓库；首次开启 Pages 约 1 分钟构建，期间访问可能 404。";
     }
   } else {
-    hint.className = cls("field-hint", "is-good");
-    hint.textContent = pubGh
-      ? "匿名临时部署，约 60 分钟后失效；窗口期内可认领为永久"
-      : "匿名临时部署，默认 60 分钟自动失效";
-    if (title) title.textContent = "发布到线上 · Cloudflare 临时链接";
+    pubDest = "将部署为临时链接，约 60 分钟失效；可在结果里「认领」转永久";
+    pubDestBad = false;
     if (tip) {
-      tip.innerHTML = "部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>" +
-        "（以结果里的倒计时为准）；失效前点结果里的「认领」登录 Cloudflare 即可转永久" +
-        "（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。";
+      tip.innerHTML = "限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。";
     }
   }
-  updatePathWarn();   // 目标地址会随托管方式/仓库名变，警告跟着重算
+  renderPubSum();   // 目标地址会随托管方式/仓库名变，汇总跟着重算
 }
+
+/* 发布预览：虚线框，集中显示「目的地 / 目录状态 / 路径警告」；
+   发布中就地切成「进度条 + 逐条动画的步骤」。 */
+function renderPubSum() {
+  const el = $("pubSum");
+  if (!el) return;
+  if (pubRunning) { renderPubRunSum(); return; }
+
+  const has = pubDest || pubDirMsg || pubWarnText;
+  el.hidden = !has;
+  if (!has) { el.classList.remove("is-run"); return; }
+
+  const urlHtml = pubDest
+    ? '<div class="preview-url' + (pubDestBad ? " is-bad" : "") + '">' + esc(pubDest) + "</div>"
+    : "";
+  const checkHtml = pubDirMsg
+    ? '<div class="preview-check' + (pubDirBad ? " is-bad" : " is-ok") + '">' + esc(pubDirMsg) + "</div>"
+    : "";
+  const warnHtml = pubWarnText
+    ? '<div class="preview-warn">' + esc(pubWarnText) + "</div>"
+    : "";
+
+  el.classList.remove("is-run");
+  el.innerHTML = urlHtml + checkHtml + warnHtml;
+}
+
+/* 发布态：预览框切换成进度展示区 */
+function renderPubRunSum() {
+  const el = $("pubSum");
+  if (!el) return;
+  const steps = pubStepsOf(pubHosting === "github");
+  el.classList.add("is-run");
+  el.hidden = false;
+  el.innerHTML =
+    (pubDest
+      ? '<div class="preview-url' + (pubDestBad ? " is-bad" : "") + '">' + esc(pubDest) + "</div>"
+      : "") +
+    '<div class="pb-bar" id="pubBar"></div>' +
+    '<div class="pb-steps">' + steps.map((s, i) =>
+      '<div class="pb-step" style="--i:' + i + '">' +
+        "<b>" + (i + 1) + "</b><span>" + esc(s) + "</span>" +
+      "</div>").join("") + "</div>";
+  pubStepEls = Array.prototype.slice.call(el.querySelectorAll(".pb-step"));
+}
+
+/* 收尾：进度条停在满/红，步骤全打勾。ok=false 时只停成红色，不pretend成功 */
+function pubFinish(ok) {
+  pubRunning = false;
+  const bar = $("pubBar");
+  if (bar) bar.classList.add(ok ? "is-done" : "is-fail");
+  if (ok) {
+    pubStepEls.forEach(n => {
+      n.classList.add("is-done");
+      const b = n.querySelector("b");
+      if (b) b.textContent = "✔";
+    });
+  }
+}
+
+/* 步骤之后追加一行结果（完成 / 失败原因） */
+function pubAppendStep(text, bad) {
+  const el = $("pubSum");
+  if (!el) return;
+  el.insertAdjacentHTML("beforeend",
+    '<div class="pb-step' + (bad ? " is-bad" : " is-done") + '" style="--i:0">' +
+      "<b>" + (bad ? "✗" : "✔") + "</b><span>" + esc(text) + "</span></div>");
+}
+
+function pubStepsOf(isGh) {
+  return isGh
+    ? ["校验产物目录", "确定目标仓库", "推送产物（强制提交并补 .nojekyll）", "开启 GitHub Pages"]
+    : ["校验产物目录", "下载 / 复用 wrangler", "上传到 Cloudflare 边缘网络"];
+}
+
+/* GitHub 托管下的「发布目标」二选一：
+   - 项目仓库（子路径）：可改名（见 E）
+   - 我的站点根（域名根）：仓库固定为 <owner>.github.io，站点落在域名根 ——
+     产物里的根绝对路径天然成立，任何静态站都不用配 basePath；但一个账号只有这一个根，
+     所以这里隐藏仓库名输入、给出覆盖警告，发布时还要「再点一次」确认。 */
+function renderPubTarget() {
+  const box = $("pubTargetCards");
+  if (!box) return;
+  const on = pubUserSite ? "root" : "project";
+  box.innerHTML = PUB_TARGETS.map(t =>
+    '<button class="' + cls("target-card", t.key === on && "is-on") + '" role="radio"' +
+    ' aria-checked="' + (t.key === on ? "true" : "false") + '"' +
+    dataAttrs({ act: "pub-target-pick", key: t.key }) + ">" +
+      '<span class="target-dot"></span>' +
+      '<span class="target-body">' +
+        '<span class="target-title">' + esc(t.label) + "</span>" +
+        '<span class="target-note">' + esc(t.note) + "</span>" +
+      "</span>" +
+    "</button>").join("");
+
+  const row = $("pubRepoRow");
+  if (row) row.hidden = pubUserSite;
+  const warn = $("pubRootWarn");
+  if (warn) warn.hidden = !pubUserSite;
+}
+
+on("pub-target-pick", el => {
+  const want = el.dataset.key === "root";
+  if (want === pubUserSite) return;
+  pubUserSite = want;
+  pubRootArmed = false;                 // 换了目标，之前的确认作废
+  clearTimeout(pubRootTimer);
+  renderPubTarget();
+  refreshGhPreview();                   // 地址与提示都会跟着变
+});
 
 /* 用户改了「目标仓库」→ 重新取一次预览（地址、是否新建都会变）。
    预览不打网络（账号名取本地记录），所以可以边输边刷。 */
@@ -119,7 +265,7 @@ async function refreshGhPreview() {
   const typed = $("pubRepo") ? $("pubRepo").value.trim() : "";
   try {
     const r = await invoke("gh_publish_preview", {
-      projectPath: p.path, projectName: p.name, repoName: typed || null,
+      projectPath: p.path, projectName: p.name, repoName: typed || null, userSite: pubUserSite,
     });
     if (seq !== pubRepoSeq) return;   // 期间又改了，丢弃这次
     pubGh = r;
@@ -136,42 +282,59 @@ async function probeDists() {
   const p = projects.find(x => x.id === pubId);
   if (!p) return;
 
-  $("distChips").innerHTML = "";
   setPathHint("正在探测构建产物…");
+  if ($("pubDirPill")) {
+    $("pubDirPill").className = "status-pill";
+    $("pubDirPill").innerHTML = '<span class="dot"></span>正在探测…';
+  }
 
   let r = null;
   try { r = await invoke("publish_probe", { projectPath: p.path }); } catch (e) { /* 探测失败按无候选处理 */ }
   pubProbe = r;
   if (!r) { setPathHint(""); return; }
 
-  const items = (r.candidates || []).map(c => ({
-    text: c.rel + (c.hasIndex ? " ✓" : ""),
-    sub: c.files + " 文件 · " + c.sizeMb + "MB",
-    act: "dist-pick",
-    data: { path: c.path },
-    title: c.path,
-  }));
-  if (r.rootStatic) {
-    items.push({ text: "项目根目录", sub: "纯静态", act: "dist-pick", data: { path: p.path } });
-  }
-
-  $("distChips").innerHTML = UI.chipList(items);
   if ((r.candidates || []).length) $("pubPath").value = r.candidates[0].path;
   refreshPubHint();
+  syncDirView();
 }
 
-/* 目录说明行：variant 为 bad / good，缺省是中性说明 */
+/* 目录卡片：把隐藏 input 的值同步到可视路径 + 状态胶囊 */
+function syncDirView() {
+  const box = $("pubPathBox");
+  const pill = $("pubDirPill");
+  const input = $("pubPath");
+  if (!box || !pill || !input) return;
+  const v = input.value.trim();
+  box.textContent = v || "尚未选择构建产物目录";
+  box.title = v || "";
+
+  const cands = (pubProbe && pubProbe.candidates) || [];
+  const hit = cands.find(c => c.path === v);
+  if (hit) {
+    pill.className = "status-pill is-ok";
+    pill.innerHTML = '<span class="dot"></span>' + esc(hit.rel) +
+      " · " + hit.files + " 文件 · " + hit.sizeMb + "MB";
+  } else if (v) {
+    pill.className = "status-pill " + (pubDirBad ? "is-bad" : "is-ok");
+    pill.innerHTML = '<span class="dot"></span>' + (pubDirBad ? "目录不存在" : "自定义目录");
+  } else {
+    pill.className = "status-pill";
+    pill.innerHTML = '<span class="dot"></span>未探测';
+  }
+}
+
+/* 目录说明行：variant 为 bad / good，缺省是中性说明。
+   正常时只显示一句短的 —— dist chip 上的 ✓ 已经表达了「存在」。 */
 function setPathHint(text, variant) {
-  const el = $("pubHint");
-  el.className = cls("field-hint", variant && "is-" + variant);
-  el.textContent = text || "";
+  pubDirMsg = text || "";
+  pubDirBad = variant === "bad";
+  renderPubSum();
 }
 
 /* 输入框变化 / 选 chip 后刷新：目录是否存在 + 探测结论 */
 let checkSeq = 0;
 async function refreshPubHint() {
   const v = $("pubPath").value.trim();
-  $$(".chip", $("distChips")).forEach(el => el.classList.toggle("is-on", el.dataset.path === v));
 
   if (!v) {
     setPathHint(pubProbe ? pubProbe.hint : "");
@@ -185,7 +348,7 @@ async function refreshPubHint() {
   if (seq !== checkSeq) return;   // 期间又有新输入，丢弃这次结果
 
   if (ok) {
-    setPathHint("✓ 目录存在，可以发布", "good");
+    setPathHint("✓ 目录可用", "good");
     scheduleScan(v);              // 顺带扫一遍产物里的资源路径
   } else {
     let msg = "✗ 这个目录不存在 —— 需要先构建出静态产物再发布。";
@@ -193,6 +356,7 @@ async function refreshPubHint() {
     setPathHint(msg, "bad");
     scheduleScan("");
   }
+  syncDirView();
 }
 
 /* ============================== 产物路径自检（发布前） ==============================
@@ -216,20 +380,17 @@ function scheduleScan(v) {
 
 /* 只有「确实会发到子路径」且「产物里真有根绝对引用」才提示 —— 发到站点根是没问题的。 */
 function updatePathWarn() {
-  const el = $("pubPathWarn");
-  if (!el) return;
   const hosting = pubHosting || "cloudflare";
   let subPath = true;                       // 地址未知时按「多半是项目页」保守处理
   if (pubGh && pubGh.url) {
     try { subPath = new URL(pubGh.url).pathname !== "/"; } catch (_) { subPath = true; }
   }
-  const bad = hosting === "github" && subPath && !!pubScan && pubScan.hits > 0;
-  el.hidden = !bad;
-  if (!bad) return;
-  const sample = (pubScan.samples || []).slice(0, 3).join("、");
-  el.textContent = "⚠️ 产物里有 " + pubScan.hits + " 处根绝对路径（如 " + sample +
-    "）—— 发到子路径会丢样式、点链接会 404。请按站点根重新构建" +
-    "（Next 配 basePath、Vite 配 base），或改发到用户站点根。";
+  pubWarnText = (hosting === "github" && subPath && !!pubScan && pubScan.hits > 0)
+    ? "⚠️ 产物里有 " + pubScan.hits + " 处根绝对路径（如 " +
+      (pubScan.samples || []).slice(0, 2).join("、") +
+      "），发到子路径会丢样式 —— 请配 basePath 重新构建，或改发到站点根。"
+    : "";
+  renderPubSum();
 }
 
 async function doPublish() {
@@ -240,11 +401,39 @@ async function doPublish() {
   const hosting = pubHosting || "cloudflare";
   const isGh = hosting === "github";
 
+  // 发到「站点根」是破坏性操作（会静默覆盖根上现有的内容）→ 二次确认：
+  // 第一次点只是把按钮变成确认文案，3 秒内再点一次才真的发。
+  if (isGh && pubUserSite && !pubRootArmed) {
+    pubRootArmed = true;
+    const btn = $("pubBtn");
+    btn.textContent = "再点一次：会覆盖站点根";
+    clearTimeout(pubRootTimer);
+    pubRootTimer = setTimeout(() => {
+      pubRootArmed = false;
+      btn.textContent = "发布";
+    }, 3000);
+    $("pubStatus").innerHTML =
+      '<div class="pub-loading">将发布到站点根 —— 根上现有的内容会被替换。确认请再点一次。</div>';
+    return;
+  }
+  pubRootArmed = false;      // 这一下是真的发，把确认态消费掉
+  clearTimeout(pubRootTimer);
+
   $("pubBtn").disabled = true;
   $("pubBtn").textContent = "发布中…";
-  $("pubStatus").innerHTML = isGh
-    ? '<div class="pub-loading">正在推送到 GitHub（大产物目录上传需要一会儿）…</div>'
-    : '<div class="pub-loading">正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…</div>';
+  $("pubStatus").innerHTML = "";
+
+  // 切到发布态：状态行转圈，步骤在汇总块里逐条淡入（见 renderPubRunSum）
+  pubRunning = true;
+  showPubRun();
+  const runSt = $("pubRunStatus");
+  if (runSt) {
+    runSt.className = "build-status";
+    runSt.innerHTML = UI.spinner(isGh
+      ? "正在发布到 GitHub Pages…"
+      : "正在上传到 Cloudflare（首次约需 1–2 分钟下载 wrangler）…");
+  }
+  renderPubSum();
 
   try {
     const r = await invoke("publish_project", {
@@ -256,18 +445,29 @@ async function doPublish() {
       branch: pubGh ? pubGh.branch : "",
       // 目标仓库：留空则后端按默认规则命名（项目远端 > <前缀><项目名>）
       repoName: ($("pubRepo") ? $("pubRepo").value.trim() : "") || null,
+      // true = 发到账号的站点根 <owner>.github.io（地址就是域名根）
+      userSite: !!pubUserSite,
     });
 
     if (r.ok && r.url) {
+      if (runSt) { runSt.className = "build-status is-ok"; runSt.textContent = "发布完成"; }
+      pubFinish(true);
+      pubAppendStep("完成", false);
       showPubResult(r);
       refreshPublishes();   // 记录已落盘，同步角标与列表
     } else {
+      // 失败要回到配置态，用户才能改目标 / 目录后重试；原因顺带留在汇总块里（红字一行）
+      if (runSt) { runSt.className = "build-status is-bad"; runSt.textContent = "发布失败"; }
+      showPubCfg();
+      pubAppendStep((r.error || "未知错误").split("\n")[0], true);
       const msg = (r.error || "未知错误").split("\n").slice(0, 12).join("\n");
       $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(msg) + "</div>";
       $("pubBtn").disabled = false;
       $("pubBtn").textContent = "重试";
     }
   } catch (e) {
+    showPubCfg();
+    pubAppendStep(String(e).split("\n")[0], true);
     $("pubStatus").innerHTML = '<div class="pub-err">发布失败：\n' + esc(String(e)) + "</div>";
     $("pubBtn").disabled = false;
     $("pubBtn").textContent = "重试";

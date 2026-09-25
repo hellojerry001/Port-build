@@ -524,60 +524,76 @@
 <!-- ============================== 发布 ============================== -->
 <div class="overlay" id="pubModal">
   <div class="modal is-publish">
-    <h3 class="modal-title" id="pubTitle">发布到线上</h3>
-
-    <div class="field">
-      <label class="field-label">项目</label>
-      <div class="field-static" id="pubName"></div>
+    <div class="pub-head">
+      <h3 class="modal-title">发布到线上 · <span id="pubName"></span></h3>
+      <div class="pub-sub">选择托管方式、发布目标与本地构建目录</div>
     </div>
 
-    <!-- 托管方式：默认跟随设置页，也可以只为这一次改（不想为了试一次跑去设置页） -->
-    <div class="field">
-      <label class="field-label">托管方式</label>
-      <div class="chip-row" id="pubHostChips"></div>
-      <div class="field-hint" id="pubHostHint"></div>
+    <!-- 配置态 -->
+    <div id="pubCfg">
+      <!-- 托管方式 -->
+      <section class="pub-sec">
+        <div class="pub-sec-title">托管方式</div>
+        <div class="seg" id="pubHostSeg" role="radiogroup"></div>
+      </section>
+
+      <!-- 发布目标（仅 GitHub 托管时出现） -->
+      <section class="pub-sec" id="pubGhTarget" hidden>
+        <div class="pub-sec-title">发布目标</div>
+        <div class="target-grid" id="pubTargetCards"></div>
+
+        <div id="pubRepoRow">
+          <div class="repo-input">
+            <input class="input" type="text" id="pubRepo" data-oninput="pub-repo"
+                   placeholder="仓库英文名，如 pb-site" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="helper">同名仓库会覆盖现有站点，建议使用唯一英文名称。</div>
+        </div>
+
+        <div class="helper is-warn" id="pubRootWarn" hidden>
+          ⚠️ 站点根一个账号只有这一个：发布会把根上现有的内容<b>整个替换</b>，之前发到根上的站点就没了 —— 而且 GitHub 不会有任何提示。
+        </div>
+      </section>
+
+      <!-- 部署目录 -->
+      <section class="pub-sec">
+        <div class="pub-sec-title">部署目录</div>
+        <div class="directory-card">
+          <div class="directory-top">
+            <div class="path" id="pubPathBox"></div>
+            <button class="btn" data-act="pick-folder" data-input="pubPath"
+                    data-prompt="选择构建产物目录（dist / build）">选择文件夹</button>
+          </div>
+          <div class="directory-meta">
+            <div class="status-pill" id="pubDirPill"></div>
+            <button class="link-btn" data-act="dist-probe">重新探测</button>
+          </div>
+        </div>
+        <input type="hidden" id="pubPath" data-oninput="pub-path" />
+      </section>
     </div>
 
-    <!-- 目标仓库（仅 GitHub 托管时出现）。默认名由「项目名」生成，而生成规则会丢掉中文
-         ——「CRM组件文档」「CRM客户管理」都会变成 pb-crm，多个项目落同一个仓库、
-         发布时互相覆盖站点。所以这里必须能改。留空 = 用默认规则。 -->
-    <div class="field" id="pubGhTarget" hidden>
-      <label class="field-label">目标仓库</label>
-      <div class="input-row">
-        <input class="input" type="text" id="pubRepo" data-oninput="pub-repo"
-               placeholder="pb-xxx" autocomplete="off" spellcheck="false" />
-      </div>
-      <div class="field-hint">
-        默认按项目名生成（中文会被丢掉），同名仓库会互相覆盖站点 —— 多个项目请改成各自唯一的英文名。
-      </div>
+    <!-- 发布态：状态行（转圈）；步骤动画在 #pubSum 里 -->
+    <div id="pubRun" hidden>
+      <div class="build-status" id="pubRunStatus"></div>
     </div>
 
-    <div class="field">
-      <label class="field-label">部署目录（静态构建产物，如 dist / build，仅含 HTML/CSS/JS/图片）</label>
-      <div class="input-row">
-        <input class="input" type="text" id="pubPath" data-oninput="pub-path" />
-        <button class="btn" data-act="pick-folder" data-input="pubPath"
-                data-prompt="选择构建产物目录（dist / build）">选择文件夹</button>
-      </div>
-      <div class="chip-bar">
-        <div class="chip-row" id="distChips"></div>
-        <button class="btn is-ghost" data-act="dist-probe">重新探测</button>
-      </div>
-      <div class="field-hint" id="pubHint"></div>
-      <!-- 发到子路径时的「根绝对路径」警告（由 scan_asset_paths 的结果驱动） -->
-      <div class="field-hint is-warn" id="pubPathWarn" hidden></div>
-    </div>
+    <!-- 发布预览：配置态是虚线框（目标地址 / 目录状态 / 路径警告）；
+         发布态就地切成「进度条 + 逐条动画的步骤」 -->
+    <div class="pub-preview" id="pubSum"></div>
 
+    <!-- 结果（成功给地址，失败给原因） -->
     <div id="pubStatus" class="pub-status"></div>
 
-    <div class="modal-foot">
-      <button class="btn is-ghost" data-act="publish-history">历史记录</button>
-      <button class="btn is-ghost" data-act="publish-close">取消</button>
-      <button class="btn is-primary" id="pubBtn" data-act="pub-btn">发布</button>
-    </div>
+    <div class="pub-tip" id="pubFootTip"></div>
 
-    <div class="pub-tip" id="pubFootTip">部署到 Cloudflare 边缘网络：匿名临时公开链接，<b>默认 60 分钟自动失效</b>（以结果里的倒计时为准）；
-      失效前点结果里的「认领」登录 Cloudflare 即可转永久（绑定你账号长期有效）。限制：单文件 ≤25MiB、≤1000 个文件、仅静态（无后端）。</div>
+    <div class="modal-foot">
+      <button class="link-btn" data-act="publish-history">历史记录</button>
+      <div class="modal-foot-ops">
+        <button class="btn" data-act="publish-close">取消</button>
+        <button class="btn is-primary" id="pubBtn" data-act="pub-btn">发布</button>
+      </div>
+    </div>
   </div>
 </div>
 
